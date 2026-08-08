@@ -135,12 +135,13 @@ tracked as the first task inside the milestone, not skipped.
 | # | Milestone | Delivers | Depends on |
 |---|---|---|---|
 | M1 | **Foundations** | Repo scaffold (Next.js/TS/Tailwind/shadcn), Docker Compose (postgres, redis, minio, app, worker), `.env.example`, lint/format/test tooling, ADR log, this scope doc | — |
-| M2 | **Database schema** | Full Prisma schema for masters, documents, incidents, claims, surveys, workshop, TAT, policies, settlement, telematics snapshot, audit — plus migrations and an ER doc | M1 |
-| M3 | **Auth & RBAC** | Session/auth (credentials + hashed passwords to start), role/permission model, org-scoping middleware, protected API route pattern | M2 |
+| M2a ✅ | **Database schema — core** | Org/city/depot/vehicle/driver, users, document repository (versioned + OCR), incidents, evidence, telematics snapshot, activity timeline, audit log, human-readable ID generation. See [`docs/schema/M2A.md`](schema/M2A.md). | M1 |
+| M2b | **Database schema — claims lifecycle** | Insurance policies, claims, surveys, workshop/repair jobs, TAT engine (stage templates, hold periods, escalation rules), settlement/payment | M2a |
+| M3 | **Auth & RBAC** | Session/auth (credentials + hashed passwords to start), role/permission model, org-scoping middleware, protected API route pattern | M2a |
 | M4 | **Vehicle/depot/driver master** | Org/city/depot/vehicle/driver CRUD + import, master-data API contracts, tests | M3 |
 | M5 | **Document repository** | Document upload to S3-compatible storage, versioning, validity-date tracking, linkage to incidents/claims/vehicles | M4 |
 | M6 | **Incident workflow** | Incident creation/state machine, evidence attachment, human-readable ID generation (`INC-YYYY-######`) | M4, M5 |
-| M7 | **Claim workflow** | Incident→claim conversion (no re-entry), multi-claim-per-incident, claim types, policy auto-selection by incident date, claim state machine (`CLM-YYYY-######`) | M6 |
+| M7 | **Claim workflow** | Incident→claim conversion (no re-entry), multi-claim-per-incident, claim types, policy auto-selection by incident date, claim state machine (`CLM-YYYY-######`) | M6, M2b |
 | M8 | **TAT engine** | Configurable stage templates per org/case-type, `case_stage_instance` tracking, on-hold periods with reason/responsible party, elapsed-time calc excluding holds | M7 |
 | M9 | **Dashboards** | Corporate/depot/claim dashboards backed by real data (no mocks) — status counts, TAT breach counts, aging | M6–M8 |
 
