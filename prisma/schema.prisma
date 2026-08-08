@@ -1,0 +1,14 @@
+// CM FIM System — Prisma schema.
+//
+// Foundations (M1) only: no domain models yet. The full schema (masters,
+// documents, incidents, claims, TAT, policies, settlement, audit, etc.) is
+// designed and added in M2 — see docs/SCOPE.md.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
