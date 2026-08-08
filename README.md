@@ -9,15 +9,19 @@ and payment.
 
 ## Status
 
-**M1 — Foundations** and **M2 — Database schema** (split into M2a/M2b) are
-done: app scaffold, Docker Compose, tooling, and the full Phase 1 Prisma
-schema — org structure, users, vehicle/driver master data, the document
-repository, incidents, insurance policies, claims, surveys, workshop/repair
-jobs, the TAT engine, settlement/payment, and the audit log. No auth or
-UI/business logic yet. See [`docs/SCOPE.md`](docs/SCOPE.md) for the
-milestone plan, [`docs/schema/`](docs/schema/) for the schema that's
-implemented so far, and [`docs/RULES.md`](docs/RULES.md) for the Business
-Rules / Process Rules the system is being built against.
+**M1 (Foundations), M2 (Database schema, M2a+M2b), and M3 (Auth & RBAC)**
+are done: app scaffold, Docker Compose, tooling, the full Phase 1 Prisma
+schema, and credential login/logout with database-backed sessions, role
+gating, and org-scoping. No business-module UI yet (vehicle/driver master,
+incidents, claims, ... start at M4). See [`docs/SCOPE.md`](docs/SCOPE.md)
+for the milestone plan, [`docs/schema/`](docs/schema/) and
+[`docs/AUTH.md`](docs/AUTH.md) for what's implemented so far, and
+[`docs/RULES.md`](docs/RULES.md) for the Business Rules / Process Rules
+the system is being built against.
+
+Try it locally: seed the dev database (`npm run db:seed`) and sign in at
+`/login` with `admin@jbm.example` / `ChangeMe123!` (dev-only credentials,
+never valid in production).
 
 ## Stack
 
@@ -38,8 +42,9 @@ docker compose up postgres redis minio minio-init -d
 
 npm install
 npm run db:migrate     # apply migrations (creates the schema)
-npm run dev             # Next.js app on http://localhost:3000
-npm run worker:dev       # BullMQ worker process, in a second terminal
+npm run db:seed         # creates a JBM org + an admin login for local testing
+npm run dev              # Next.js app on http://localhost:3000
+npm run worker:dev        # BullMQ worker process, in a second terminal
 ```
 
 To run the whole stack (including the app and worker) in containers
@@ -63,9 +68,11 @@ docker compose up --build
 | `npm run db:migrate` | Create/apply a dev migration |
 | `npm run db:migrate:deploy` | Apply migrations without generating a new one (CI/prod) |
 | `npm run db:studio` | Prisma Studio (DB browser) |
+| `npm run db:seed` | Seed a dev-only JBM org + admin login |
 
 ## Docs
 
 - [`docs/SCOPE.md`](docs/SCOPE.md) — milestone-by-milestone delivery plan, domain model, module boundaries, adapter contracts.
 - [`docs/RULES.md`](docs/RULES.md) — Business Rules and Process Rules, each with a reason, kept current as modules are scoped.
 - [`docs/schema/`](docs/schema/) — per-milestone database schema documentation (ER diagrams, design rationale).
+- [`docs/AUTH.md`](docs/AUTH.md) — auth/session/RBAC/org-scoping design and how it was verified.

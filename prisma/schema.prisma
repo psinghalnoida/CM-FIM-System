@@ -30,6 +30,10 @@
 // - Money columns carry an explicit `currency` (default "INR") rather than
 //   assuming a single hardcoded currency, consistent with the org_id-
 //   everywhere multi-tenancy stance in docs/SCOPE.md.
+//
+// M3 adds: Session (database-backed sessions — see docs/AUTH.md for the
+// full auth design: hand-rolled DB sessions + encrypted cookie + DAL, per
+// this Next.js version's own recommended pattern).
 
 generator client {
   provider = "prisma-client"
@@ -158,8 +162,25 @@ model User {
   notifiedByEscalationRules EscalationRule[]        @relation("EscalationRuleNotifyUser")
   approvedSettlements       Settlement[]            @relation("SettlementApprovedBy")
   reconciledPayments        Payment[]               @relation("PaymentReconciledBy")
+  sessions                  Session[]
 
   @@map("users")
+}
+
+// Database-backed session (see docs/AUTH.md). The browser only ever holds
+// an encrypted cookie containing this row's id — never the row's contents
+// directly — so a session can be revoked (revokedAt) without waiting for
+// the cookie to expire.
+model Session {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("sessions")
 }
 
 // ---------------------------------------------------------------------------
