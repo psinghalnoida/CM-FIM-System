@@ -136,7 +136,7 @@ tracked as the first task inside the milestone, not skipped.
 |---|---|---|---|
 | M1 | **Foundations** | Repo scaffold (Next.js/TS/Tailwind/shadcn), Docker Compose (postgres, redis, minio, app, worker), `.env.example`, lint/format/test tooling, ADR log, this scope doc | — |
 | M2a ✅ | **Database schema — core** | Org/city/depot/vehicle/driver, users, document repository (versioned + OCR), incidents, evidence, telematics snapshot, activity timeline, audit log, human-readable ID generation. See [`docs/schema/M2A.md`](schema/M2A.md). | M1 |
-| M2b | **Database schema — claims lifecycle** | Insurance policies, claims, surveys, workshop/repair jobs, TAT engine (stage templates, hold periods, escalation rules), settlement/payment | M2a |
+| M2b ✅ | **Database schema — claims lifecycle** | Insurance policies, claims, surveys, workshop/repair jobs, TAT engine (stage templates, hold periods, escalation rules), settlement/payment. See [`docs/schema/M2B.md`](schema/M2B.md). | M2a |
 | M3 | **Auth & RBAC** | Session/auth (credentials + hashed passwords to start), role/permission model, org-scoping middleware, protected API route pattern | M2a |
 | M4 | **Vehicle/depot/driver master** | Org/city/depot/vehicle/driver CRUD + import, master-data API contracts, tests | M3 |
 | M5 | **Document repository** | Document upload to S3-compatible storage, versioning, validity-date tracking, linkage to incidents/claims/vehicles | M4 |

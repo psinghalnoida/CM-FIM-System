@@ -9,14 +9,15 @@ and payment.
 
 ## Status
 
-**M1 — Foundations** and **M2a — Database schema (core)** are done: app
-scaffold, Docker Compose, tooling, and the Prisma schema/migration for org
-structure, users, vehicle/driver master data, the document repository,
-incidents, evidence, telematics snapshots, and the audit log. No auth or
+**M1 — Foundations** and **M2 — Database schema** (split into M2a/M2b) are
+done: app scaffold, Docker Compose, tooling, and the full Phase 1 Prisma
+schema — org structure, users, vehicle/driver master data, the document
+repository, incidents, insurance policies, claims, surveys, workshop/repair
+jobs, the TAT engine, settlement/payment, and the audit log. No auth or
 UI/business logic yet. See [`docs/SCOPE.md`](docs/SCOPE.md) for the
-milestone plan, [`docs/schema/M2A.md`](docs/schema/M2A.md) for the schema
-that's implemented so far, and [`docs/RULES.md`](docs/RULES.md) for the
-Business Rules / Process Rules the system is being built against.
+milestone plan, [`docs/schema/`](docs/schema/) for the schema that's
+implemented so far, and [`docs/RULES.md`](docs/RULES.md) for the Business
+Rules / Process Rules the system is being built against.
 
 ## Stack
 
