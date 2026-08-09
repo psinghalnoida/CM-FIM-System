@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { verifySession } from "@/lib/dal";
 import { listVehicles } from "@/lib/masters/vehicle";
 
@@ -15,6 +16,7 @@ export default async function VehiclesPage() {
             <th className="py-2">Type</th>
             <th className="py-2">Make / Model</th>
             <th className="py-2">Status</th>
+            <th className="py-2"></th>
           </tr>
         </thead>
         <tbody>
@@ -26,12 +28,20 @@ export default async function VehiclesPage() {
                 {[vehicle.make, vehicle.model].filter(Boolean).join(" ") || "—"}
               </td>
               <td className="py-2">{vehicle.status}</td>
+              <td className="py-2">
+                <Link
+                  href={`/vehicles/${vehicle.id}/documents`}
+                  className="text-primary underline underline-offset-4"
+                >
+                  Documents
+                </Link>
+              </td>
             </tr>
           ))}
           {vehicles.length === 0 && (
             <tr>
               <td
-                colSpan={4}
+                colSpan={5}
                 className="text-muted-foreground py-4 text-center"
               >
                 No vehicles visible to your account.

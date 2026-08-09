@@ -1,0 +1,406 @@
+import "server-only";
+import { randomUUID } from "node:crypto";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { z } from "zod";
+import { s3, getDocumentsBucket } from "@/lib/s3";
+import { db } from "@/lib/db";
+import { scopedDb } from "@/lib/scoped-db";
+import type { AuthSession } from "@/lib/dal";
+import { recordAudit } from "@/lib/audit";
+import {
+  SUPPORTED_LINK_TYPES,
+  assertCanManageDocumentsFor,
+  assertCanReadDocumentsFor,
+} from "@/lib/documents/link-scope";
+import { DocumentType } from "@/lib/generated/prisma/enums";
+
+// BR-04: documents are versioned, never overwritten in place. Upload is a
+// two-step presigned-URL flow (browser -> S3/MinIO directly) — see
+// docs/DOCUMENTS.md for why, and what it does and doesn't guard against.
+
+const PRESIGNED_URL_TTL_SECONDS = 300; // 5 minutes
+const DEFAULT_MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
+
+/**
+ * Read fresh on every call (not cached at module load) so
+ * DOCUMENT_MAX_FILE_SIZE_BYTES can be overridden — mainly so tests can
+ * exercise the rejection path without uploading a 100MB fixture. Also a
+ * legitimate ops knob: tunable without a code change.
+ */
+function getMaxFileSizeBytes(): number {
+  const override = process.env.DOCUMENT_MAX_FILE_SIZE_BYTES;
+  if (!override) return DEFAULT_MAX_FILE_SIZE_BYTES;
+  const parsed = Number(override);
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_MAX_FILE_SIZE_BYTES;
+}
+
+function sanitizeFileName(fileName: string): string {
+  return fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-150);
+}
+
+function newStorageKey(fileName: string): string {
+  return `documents/${randomUUID()}-${sanitizeFileName(fileName)}`;
+}
+
+async function presignPutUrl(storageKey: string): Promise<string> {
+  return getSignedUrl(
+    s3,
+    new PutObjectCommand({ Bucket: getDocumentsBucket(), Key: storageKey }),
+    { expiresIn: PRESIGNED_URL_TTL_SECONDS },
+  );
+}
+
+/**
+ * The authoritative size/content-type come from S3 itself (HeadObject),
+ * never from client-reported values — a client could otherwise lie about
+ * either. Used at "complete" time, after the browser has already PUT the
+ * file directly to S3.
+ */
+async function headUploadedObject(storageKey: string) {
+  const head = await s3.send(
+    new HeadObjectCommand({ Bucket: getDocumentsBucket(), Key: storageKey }),
+  );
+  return {
+    contentLength: head.ContentLength ?? 0,
+    contentType: head.ContentType ?? "application/octet-stream",
+  };
+}
+
+async function deleteUploadedObject(storageKey: string): Promise<void> {
+  await s3
+    .send(
+      new DeleteObjectCommand({
+        Bucket: getDocumentsBucket(),
+        Key: storageKey,
+      }),
+    )
+    .catch(() => {
+      // Best-effort cleanup of a rejected oversized upload — not worth
+      // failing the request over.
+    });
+}
+
+async function assertWithinSizeLimit(
+  storageKey: string,
+  contentLength: number,
+): Promise<void> {
+  const maxFileSizeBytes = getMaxFileSizeBytes();
+  if (contentLength > maxFileSizeBytes) {
+    await deleteUploadedObject(storageKey);
+    throw new Error(
+      `Uploaded file (${contentLength} bytes) exceeds the ${maxFileSizeBytes}-byte limit.`,
+    );
+  }
+}
+
+// --- Presign (step 1: get a URL to upload directly to) ---------------------
+
+export const PresignUploadSchema = z.object({
+  linkedEntityType: z.enum(SUPPORTED_LINK_TYPES),
+  linkedEntityId: z.uuid(),
+  fileName: z.string().trim().min(1).max(200),
+});
+export type PresignUploadInput = z.infer<typeof PresignUploadSchema>;
+
+/** Presign for a brand-new document (no Document row exists yet). */
+export async function presignDocumentUpload(
+  session: AuthSession,
+  input: PresignUploadInput,
+) {
+  const data = PresignUploadSchema.parse(input);
+  await assertCanManageDocumentsFor(
+    session,
+    data.linkedEntityType,
+    data.linkedEntityId,
+  );
+
+  const storageKey = newStorageKey(data.fileName);
+  const uploadUrl = await presignPutUrl(storageKey);
+  return { uploadUrl, storageKey, expiresInSeconds: PRESIGNED_URL_TTL_SECONDS };
+}
+
+/** Presign for a new version of an existing document. */
+export async function presignVersionUpload(
+  session: AuthSession,
+  documentId: string,
+  fileName: string,
+) {
+  const scoped = scopedDb(session.user.organizationId);
+  const document = await scoped.document.findUniqueOrThrow({
+    where: { id: documentId },
+    include: { links: true },
+  });
+  const link = document.links[0];
+  if (!link) throw new Error("Document has no link to check access against.");
+  await assertCanManageDocumentsFor(
+    session,
+    link.linkedEntityType,
+    link.linkedEntityId,
+  );
+
+  const storageKey = newStorageKey(fileName);
+  const uploadUrl = await presignPutUrl(storageKey);
+  return { uploadUrl, storageKey, expiresInSeconds: PRESIGNED_URL_TTL_SECONDS };
+}
+
+// --- Complete (step 2: the file is in S3 — record it) ----------------------
+
+export const CompleteNewDocumentSchema = z.object({
+  storageKey: z.string().min(1),
+  fileName: z.string().trim().min(1).max(200),
+  documentType: z.enum(DocumentType),
+  title: z.string().trim().min(1).max(200),
+  linkedEntityType: z.enum(SUPPORTED_LINK_TYPES),
+  linkedEntityId: z.uuid(),
+  validityStartDate: z.coerce.date().optional(),
+  validityExpiryDate: z.coerce.date().optional(),
+});
+export type CompleteNewDocumentInput = z.infer<
+  typeof CompleteNewDocumentSchema
+>;
+
+/** Creates the Document + its first DocumentVersion + the DocumentLink, all at once. */
+export async function completeNewDocumentUpload(
+  session: AuthSession,
+  input: CompleteNewDocumentInput,
+) {
+  const data = CompleteNewDocumentSchema.parse(input);
+  await assertCanManageDocumentsFor(
+    session,
+    data.linkedEntityType,
+    data.linkedEntityId,
+  );
+
+  const { contentLength, contentType } = await headUploadedObject(
+    data.storageKey,
+  );
+  await assertWithinSizeLimit(data.storageKey, contentLength);
+
+  // NOTE: interactive transactions don't support scopedDb (see
+  // docs/AUTH.md) — organizationId is set explicitly on every create below.
+  const document = await db.$transaction(async (tx) => {
+    const doc = await tx.document.create({
+      data: {
+        organizationId: session.user.organizationId,
+        documentType: data.documentType,
+        title: data.title,
+        validityStartDate: data.validityStartDate,
+        validityExpiryDate: data.validityExpiryDate,
+        createdById: session.user.id,
+      },
+    });
+    const version = await tx.documentVersion.create({
+      data: {
+        documentId: doc.id,
+        versionNumber: 1,
+        storageBucket: getDocumentsBucket(),
+        storageKey: data.storageKey,
+        fileName: data.fileName,
+        mimeType: contentType,
+        fileSizeBytes: contentLength,
+        uploadedById: session.user.id,
+      },
+    });
+    await tx.document.update({
+      where: { id: doc.id },
+      data: { currentVersionId: version.id },
+    });
+    await tx.documentLink.create({
+      data: {
+        documentId: doc.id,
+        linkedEntityType: data.linkedEntityType,
+        linkedEntityId: data.linkedEntityId,
+      },
+    });
+    return doc;
+  });
+
+  await recordAudit({
+    organizationId: session.user.organizationId,
+    entityType: "Document",
+    entityId: document.id,
+    action: "CREATE",
+    actorId: session.user.id,
+    afterData: {
+      title: data.title,
+      documentType: data.documentType,
+      linkedEntityType: data.linkedEntityType,
+      linkedEntityId: data.linkedEntityId,
+    },
+    sourceChannel: "WEB",
+  });
+
+  // Non-null: we just created this document in the transaction above —
+  // a null here would mean getDocument()'s own org-scoping is broken.
+  return (await getDocument(session, document.id))!;
+}
+
+export const CompleteNewVersionSchema = z.object({
+  storageKey: z.string().min(1),
+  fileName: z.string().trim().min(1).max(200),
+});
+export type CompleteNewVersionInput = z.infer<typeof CompleteNewVersionSchema>;
+
+/** Adds a new version to an existing document and makes it current (BR-04). */
+export async function completeNewVersionUpload(
+  session: AuthSession,
+  documentId: string,
+  input: CompleteNewVersionInput,
+) {
+  const data = CompleteNewVersionSchema.parse(input);
+  const scoped = scopedDb(session.user.organizationId);
+  const document = await scoped.document.findUniqueOrThrow({
+    where: { id: documentId },
+    include: { links: true },
+  });
+  const link = document.links[0];
+  if (!link) throw new Error("Document has no link to check access against.");
+  await assertCanManageDocumentsFor(
+    session,
+    link.linkedEntityType,
+    link.linkedEntityId,
+  );
+
+  const { contentLength, contentType } = await headUploadedObject(
+    data.storageKey,
+  );
+  await assertWithinSizeLimit(data.storageKey, contentLength);
+
+  const version = await db.$transaction(async (tx) => {
+    const latest = await tx.documentVersion.findFirst({
+      where: { documentId },
+      orderBy: { versionNumber: "desc" },
+    });
+    const nextVersionNumber = (latest?.versionNumber ?? 0) + 1;
+    const v = await tx.documentVersion.create({
+      data: {
+        documentId,
+        versionNumber: nextVersionNumber,
+        storageBucket: getDocumentsBucket(),
+        storageKey: data.storageKey,
+        fileName: data.fileName,
+        mimeType: contentType,
+        fileSizeBytes: contentLength,
+        uploadedById: session.user.id,
+      },
+    });
+    await tx.document.update({
+      where: { id: documentId },
+      data: { currentVersionId: v.id },
+    });
+    return v;
+  });
+
+  await recordAudit({
+    organizationId: session.user.organizationId,
+    entityType: "Document",
+    entityId: documentId,
+    action: "UPDATE",
+    actorId: session.user.id,
+    beforeData: { currentVersionId: document.currentVersionId },
+    afterData: {
+      currentVersionId: version.id,
+      versionNumber: version.versionNumber,
+    },
+    sourceChannel: "WEB",
+  });
+
+  return version;
+}
+
+// --- Read --------------------------------------------------------------
+
+export async function getDocument(session: AuthSession, id: string) {
+  const scoped = scopedDb(session.user.organizationId);
+  const document = await scoped.document.findUnique({
+    where: { id },
+    include: {
+      versions: { orderBy: { versionNumber: "desc" } },
+      links: true,
+      currentVersion: true,
+    },
+  });
+  if (!document) return null;
+  const link = document.links[0];
+  if (link) {
+    await assertCanReadDocumentsFor(
+      session,
+      link.linkedEntityType,
+      link.linkedEntityId,
+    );
+  }
+  return document;
+}
+
+export const ListDocumentsSchema = z.object({
+  linkedEntityType: z.enum(SUPPORTED_LINK_TYPES),
+  linkedEntityId: z.uuid(),
+});
+export type ListDocumentsInput = z.infer<typeof ListDocumentsSchema>;
+
+export async function listDocumentsForEntity(
+  session: AuthSession,
+  input: unknown,
+) {
+  const data = ListDocumentsSchema.parse(input);
+  await assertCanReadDocumentsFor(
+    session,
+    data.linkedEntityType,
+    data.linkedEntityId,
+  );
+
+  const scoped = scopedDb(session.user.organizationId);
+  return scoped.document.findMany({
+    where: {
+      links: {
+        some: {
+          linkedEntityType: data.linkedEntityType,
+          linkedEntityId: data.linkedEntityId,
+        },
+      },
+    },
+    include: { currentVersion: true },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function getDownloadUrl(session: AuthSession, documentId: string) {
+  const scoped = scopedDb(session.user.organizationId);
+  const document = await scoped.document.findUniqueOrThrow({
+    where: { id: documentId },
+    include: { currentVersion: true, links: true },
+  });
+  const link = document.links[0];
+  if (link) {
+    await assertCanReadDocumentsFor(
+      session,
+      link.linkedEntityType,
+      link.linkedEntityId,
+    );
+  }
+  if (!document.currentVersion) {
+    throw new Error("Document has no uploaded version yet.");
+  }
+
+  const downloadUrl = await getSignedUrl(
+    s3,
+    new GetObjectCommand({
+      Bucket: document.currentVersion.storageBucket,
+      Key: document.currentVersion.storageKey,
+    }),
+    { expiresIn: PRESIGNED_URL_TTL_SECONDS },
+  );
+  return {
+    downloadUrl,
+    fileName: document.currentVersion.fileName,
+    expiresInSeconds: PRESIGNED_URL_TTL_SECONDS,
+  };
+}

@@ -139,7 +139,7 @@ tracked as the first task inside the milestone, not skipped.
 | M2b ✅ | **Database schema — claims lifecycle** | Insurance policies, claims, surveys, workshop/repair jobs, TAT engine (stage templates, hold periods, escalation rules), settlement/payment. See [`docs/schema/M2B.md`](schema/M2B.md). | M2a |
 | M3 ✅ | **Auth & RBAC** | Database-backed sessions, credential login/logout, role gating, org-scoping (Prisma Client Extension), protected Server Component/Action/Route pattern. See [`docs/AUTH.md`](AUTH.md). | M2a |
 | M4 ✅ | **Vehicle/depot/driver master** | City/Depot/Vehicle/Driver CRUD (service layer + protected API routes + simple list pages), RBAC + depot-scoping, audit logging, tests. Bulk import and full create/edit UI deferred — see [`docs/MASTERS.md`](MASTERS.md). | M3 |
-| M5 | **Document repository** | Document upload to S3-compatible storage, versioning, validity-date tracking, linkage to incidents/claims/vehicles | M4 |
+| M5 ✅ | **Document repository** | Presigned-URL upload to S3-compatible storage, versioning (BR-04), validity-date fields, linkage to Vehicle/Driver (Incident/Claim/Survey/RepairJob linking deferred to their own milestones). See [`docs/DOCUMENTS.md`](DOCUMENTS.md). | M4 |
 | M6 | **Incident workflow** | Incident creation/state machine, evidence attachment, human-readable ID generation (`INC-YYYY-######`) | M4, M5 |
 | M7 | **Claim workflow** | Incident→claim conversion (no re-entry), multi-claim-per-incident, claim types, policy auto-selection by incident date, claim state machine (`CLM-YYYY-######`) | M6, M2b |
 | M8 | **TAT engine** | Configurable stage templates per org/case-type, `case_stage_instance` tracking, on-hold periods with reason/responsible party, elapsed-time calc excluding holds | M7 |
