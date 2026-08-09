@@ -65,6 +65,12 @@ export default async function DashboardPage() {
         >
           Operational dashboard
         </Link>
+        <Link
+          href="/escalation-rules"
+          className="text-primary underline underline-offset-4"
+        >
+          Escalation rules
+        </Link>
       </nav>
       <form action={logout}>
         <Button type="submit" variant="outline" className="mt-4">

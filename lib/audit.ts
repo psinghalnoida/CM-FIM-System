@@ -1,10 +1,15 @@
-import "server-only";
 import { db } from "@/lib/db";
 import type {
   AuditAction,
   AuditSourceChannel,
 } from "@/lib/generated/prisma/enums";
 
+// No "server-only" guard (like lib/db.ts): this module is imported both
+// from the Next.js app AND, since M13, from workers/index.ts via
+// lib/escalations/scan.ts — a standalone `tsx` script outside Next's
+// build, where the guard's fallback throws (docs/OCR.md's M11 lesson,
+// applied here before it could bite the same way twice).
+//
 // BR-08: every important user action creates an audit record. This is the
 // single write path for AuditLog — domain services call recordAudit()
 // rather than writing db.auditLog.create(...) themselves, so every audit

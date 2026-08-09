@@ -72,6 +72,7 @@ model Organization {
   tatStageTemplates  TatStageTemplate[]
   caseStageInstances CaseStageInstance[]
   escalationRules    EscalationRule[]
+  escalationEvents   EscalationEvent[]
   settlements        Settlement[]
 
   @@map("organizations")
@@ -770,7 +771,8 @@ model CaseStageInstance {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
-  holdPeriods TatHoldPeriod[]
+  holdPeriods      TatHoldPeriod[]
+  escalationEvents EscalationEvent[]
 
   @@index([organizationId, status])
   @@index([incidentId])
@@ -830,8 +832,37 @@ model EscalationRule {
   createdAt                  DateTime          @default(now())
   updatedAt                  DateTime          @updatedAt
 
+  escalationEvents EscalationEvent[]
+
   @@unique([stageTemplateId, escalationLevel])
   @@map("escalation_rules")
+}
+
+// M13: one row per (stage instance, rule) that has actually fired — what
+// M2b's own EscalationRule comment anticipated ("actually firing these,
+// and logging what fired, is M13"). The unique constraint is what stops
+// the reminder scheduler from re-notifying the same level every tick;
+// lib/escalations/scan.ts checks it before firing and relies on it as a
+// backstop against a duplicate insert either way.
+model EscalationEvent {
+  id                  String            @id @default(uuid())
+  organizationId      String
+  organization        Organization      @relation(fields: [organizationId], references: [id])
+  caseStageInstanceId String
+  caseStageInstance   CaseStageInstance @relation(fields: [caseStageInstanceId], references: [id])
+  escalationRuleId    String
+  escalationRule      EscalationRule    @relation(fields: [escalationRuleId], references: [id])
+  channel             EscalationChannel
+  // Recipient addresses at fire time — a snapshot, not a live join to
+  // User (a role's membership can change after the fact; this row
+  // records who was actually notified).
+  notifiedEmails      String[]
+  firedAt             DateTime          @default(now())
+  createdAt           DateTime          @default(now())
+
+  @@unique([caseStageInstanceId, escalationRuleId])
+  @@index([organizationId])
+  @@map("escalation_events")
 }
 
 // ---------------------------------------------------------------------------

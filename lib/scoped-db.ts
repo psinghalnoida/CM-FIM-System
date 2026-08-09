@@ -30,6 +30,7 @@ export const ORG_SCOPED_MODELS = [
   "TatStageTemplate",
   "CaseStageInstance",
   "EscalationRule",
+  "EscalationEvent",
   "Settlement",
   "IdCounter",
   "AuditLog",
