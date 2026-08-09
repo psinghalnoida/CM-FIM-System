@@ -1,0 +1,1691 @@
+openapi: 3.0.3
+info:
+  title: CM FIM System API
+  version: "1.0"
+  description: >
+    Fleet Incident & Insurance Claim Management System (JBM) — the
+    protected JSON API under /api. Every route requires a valid session
+    cookie (cm_fim_session); there is no separate API-key auth. Hand-
+    maintained against the actual route handlers in app/api/** rather
+    than generated, matching this project's "no unnecessary dependencies"
+    convention (docs/PAYMENTS.md, docs/ESCALATIONS.md, ...) — keep it in
+    sync when routes change. See docs/SCOPE.md for the domain model and
+    docs/AUTH.md for the session/RBAC mechanics this spec assumes.
+servers:
+  - url: /api
+security:
+  - sessionCookie: []
+tags:
+  - name: Me
+  - name: Masters
+    description: Cities, Depots, Vehicles, Drivers
+  - name: Incidents
+  - name: Evidence
+  - name: Claims
+  - name: Surveys
+  - name: RepairJobs
+  - name: Settlements
+  - name: Payments
+  - name: Documents
+  - name: OCR
+  - name: TAT
+    description: Stage templates and stage instances
+  - name: Escalations
+  - name: Dashboards
+
+paths:
+  /me:
+    get:
+      tags: [Me]
+      summary: Current session's user
+      responses:
+        "200":
+          description: The authenticated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  # --- Masters --------------------------------------------------------
+  /cities:
+    get:
+      tags: [Masters]
+      summary: List cities in the caller's org
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                { type: array, items: { $ref: "#/components/schemas/City" } }
+    post:
+      tags: [Masters]
+      summary: Create a city (ORG_ADMIN)
+      requestBody: { $ref: "#/components/requestBodies/CreateCity" }
+      responses:
+        "201":
+          {
+            description: Created,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/City" } },
+              },
+          }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /cities/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Masters]
+      summary: Get a city
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/City" } },
+              },
+          }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Masters]
+      summary: Update a city (ORG_ADMIN)
+      requestBody: { $ref: "#/components/requestBodies/CreateCity" }
+      responses:
+        "200": { description: OK }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /depots:
+    get:
+      tags: [Masters]
+      summary: List depots (DEPOT_MANAGER sees only their own)
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items: { $ref: "#/components/schemas/Depot" },
+                      },
+                  },
+              },
+          }
+    post:
+      tags: [Masters]
+      summary: Create a depot (ORG_ADMIN, DEPOT_MANAGER)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cityId, code, name]
+              properties:
+                cityId: { type: string, format: uuid }
+                code: { type: string, maxLength: 20 }
+                name: { type: string, maxLength: 120 }
+                address: { type: string, maxLength: 500 }
+      responses:
+        "201": { description: Created }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /depots/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Masters]
+      summary: Get a depot
+      responses:
+        "200": { description: OK }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Masters]
+      summary: Update a depot
+      responses:
+        "200": { description: OK }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /vehicles:
+    get:
+      tags: [Masters]
+      summary: List vehicles (DEPOT_MANAGER sees only their own depot)
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items: { $ref: "#/components/schemas/Vehicle" },
+                      },
+                  },
+              },
+          }
+    post:
+      tags: [Masters]
+      summary: Create a vehicle (ORG_ADMIN, DEPOT_MANAGER)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [depotId, registrationNumber]
+              properties:
+                depotId: { type: string, format: uuid }
+                registrationNumber: { type: string, maxLength: 20 }
+                chassisNumber: { type: string, maxLength: 60 }
+                engineNumber: { type: string, maxLength: 60 }
+                make: { type: string, maxLength: 60 }
+                model: { type: string, maxLength: 60 }
+                vehicleType: { $ref: "#/components/schemas/VehicleType" }
+                manufactureYear: { type: integer }
+                registrationDate: { type: string, format: date-time }
+      responses:
+        "201": { description: Created }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /vehicles/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Masters]
+      summary: Get a vehicle
+      responses:
+        "200": { description: OK }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Masters]
+      summary: Update a vehicle (also accepts status)
+      responses:
+        "200": { description: OK }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /drivers:
+    get:
+      tags: [Masters]
+      summary: List drivers (DEPOT_MANAGER sees only their own depot)
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items: { $ref: "#/components/schemas/Driver" },
+                      },
+                  },
+              },
+          }
+    post:
+      tags: [Masters]
+      summary: Create a driver (ORG_ADMIN, DEPOT_MANAGER)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [depotId, name, licenseNumber]
+              properties:
+                depotId: { type: string, format: uuid }
+                name: { type: string, maxLength: 120 }
+                licenseNumber: { type: string, maxLength: 30 }
+                licenseExpiryDate: { type: string, format: date-time }
+                phone: { type: string, maxLength: 20 }
+      responses:
+        "201": { description: Created }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /drivers/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Masters]
+      summary: Get a driver
+      responses:
+        "200": { description: OK }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Masters]
+      summary: Update a driver (also accepts status)
+      responses:
+        "200": { description: OK }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  # --- Incidents --------------------------------------------------------
+  /incidents:
+    get:
+      tags: [Incidents]
+      summary: List incidents (DEPOT_MANAGER sees only their own depot)
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items: { $ref: "#/components/schemas/Incident" },
+                      },
+                  },
+              },
+          }
+    post:
+      tags: [Incidents]
+      summary: Report an incident (ORG_ADMIN, DEPOT_MANAGER) — BR-01
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vehicleId, incidentDateTime, incidentType, description]
+              properties:
+                vehicleId: { type: string, format: uuid }
+                driverId: { type: string, format: uuid }
+                incidentDateTime: { type: string, format: date-time }
+                incidentType: { $ref: "#/components/schemas/IncidentType" }
+                severity: { $ref: "#/components/schemas/IncidentSeverity" }
+                locationAddress: { type: string, maxLength: 500 }
+                locationLat: { type: number }
+                locationLng: { type: number }
+                description: { type: string, minLength: 1, maxLength: 4000 }
+                reportedVia:
+                  {
+                    type: string,
+                    enum: [WEB, WHATSAPP, MOBILE_APP, PHONE, OTHER],
+                  }
+      responses:
+        "201":
+          {
+            description: Created — auto-instantiates this org's INCIDENT-type TAT stages,
+          }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /incidents/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Incidents]
+      summary: Get an incident
+      responses:
+        "200": { description: OK }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Incidents]
+      summary: Update an incident (vehicleId is immutable)
+      responses:
+        "200": { description: OK }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /incidents/{id}/close:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Incidents]
+      summary: Close an incident
+      responses:
+        "200": { description: OK }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /incidents/{id}/reopen:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Incidents]
+      summary: Reopen a closed incident
+      responses:
+        "200": { description: OK }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  # --- Evidence ---------------------------------------------------------
+  /incidents/{id}/evidence:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Evidence]
+      summary: List evidence attached to an incident
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items: { $ref: "#/components/schemas/Evidence" },
+                      },
+                  },
+              },
+          }
+  /incidents/{id}/evidence/presign-upload:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Evidence]
+      summary: Presign a direct-to-S3 upload URL (step 1 of 2)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fileName]
+              properties: { fileName: { type: string, maxLength: 200 } }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/PresignResult" } },
+              },
+          }
+    put:
+      tags: [Evidence]
+      summary: Record evidence after the file has been PUT to S3 (step 2 of 2)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [storageKey, fileName, evidenceType]
+              properties:
+                storageKey: { type: string }
+                fileName: { type: string, maxLength: 200 }
+                evidenceType: { $ref: "#/components/schemas/EvidenceType" }
+                caption: { type: string, maxLength: 500 }
+      responses:
+        "201": { description: Created }
+  /incidents/{id}/evidence/{evidenceId}/download-url:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - name: evidenceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Evidence]
+      summary: A short-lived presigned download URL for one evidence file
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema: { $ref: "#/components/schemas/DownloadUrlResult" },
+                  },
+              },
+          }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # --- Claims -------------------------------------------------------------
+  /claims:
+    get:
+      tags: [Claims]
+      summary: List claims in the caller's org
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items: { $ref: "#/components/schemas/Claim" },
+                      },
+                  },
+              },
+          }
+    post:
+      tags: [Claims]
+      summary: Convert an incident into a claim (ORG_ADMIN, CLAIMS_MANAGER) — BR-05 auto-selects a policy for INSURANCE/MIXED
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [incidentId, claimType]
+              properties:
+                incidentId: { type: string, format: uuid }
+                claimType: { $ref: "#/components/schemas/ClaimType" }
+                assignedToId: { type: string, format: uuid }
+      responses:
+        "201":
+          {
+            description: Created — auto-instantiates this org's TAT stages for the claim's case type,
+          }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /claims/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Claims]
+      summary: Get a claim with its surveys, repair jobs, and policy
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/Claim" } },
+              },
+          }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Claims]
+      summary: Update claim fields (assignedToId, etc — not status; see /status)
+      responses:
+        "200": { description: OK }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /claims/{id}/status:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Claims]
+      summary: >
+        Transition a claim's status. OPEN -> UNDER_SURVEY -> UNDER_REPAIR
+        -> PENDING_SETTLEMENT -> SETTLED -> CLOSED, or REJECTED at any
+        point before SETTLED. Reaching CLOSED enforces BR-09 (see
+        docs/PAYMENTS.md): every non-REJECTED settlement on the claim
+        must be APPROVED, its payments must sum to the settlement
+        amount, and every payment must be reconciled.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                { status: { $ref: "#/components/schemas/ClaimStatus" } }
+      responses:
+        "200": { description: OK }
+        "409":
+          description: Invalid transition, or BR-09's closure gate rejected CLOSED
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/Error" } },
+            }
+
+  # --- Surveys --------------------------------------------------------
+  /claims/{id}/surveys:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Surveys]
+      summary: List surveys for a claim
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items: { $ref: "#/components/schemas/Survey" },
+                      },
+                  },
+              },
+          }
+    post:
+      tags: [Surveys]
+      summary: Schedule a survey (ORG_ADMIN, CLAIMS_MANAGER, SURVEYOR)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [claimId, surveyorName]
+              properties:
+                claimId: { type: string, format: uuid }
+                surveyorName: { type: string, maxLength: 200 }
+                surveyorContact: { type: string, maxLength: 100 }
+                surveyorUserId: { type: string, format: uuid }
+                scheduledAt: { type: string, format: date-time }
+      responses:
+        "201": { description: Created }
+  /claims/{id}/surveys/{surveyId}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - name: surveyId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Surveys]
+      summary: Get a survey
+      responses:
+        "200": { description: OK }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Surveys]
+      summary: Update a survey's fields
+      responses:
+        "200": { description: OK }
+  /claims/{id}/surveys/{surveyId}/status:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - name: surveyId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Surveys]
+      summary: Transition SCHEDULED -> IN_PROGRESS -> COMPLETED, or CANCELLED
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                {
+                  status:
+                    {
+                      type: string,
+                      enum: [SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED],
+                    },
+                }
+      responses:
+        "200": { description: OK }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  # --- Repair jobs ------------------------------------------------------
+  /claims/{id}/repair-jobs:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [RepairJobs]
+      summary: List repair jobs for a claim
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items: { $ref: "#/components/schemas/RepairJob" },
+                      },
+                  },
+              },
+          }
+    post:
+      tags: [RepairJobs]
+      summary: Open a repair job (ORG_ADMIN, CLAIMS_MANAGER, WORKSHOP_COORDINATOR)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [claimId, workshopName]
+              properties:
+                claimId: { type: string, format: uuid }
+                workshopName: { type: string, maxLength: 200 }
+                workshopContact: { type: string, maxLength: 100 }
+                workshopAddress: { type: string, maxLength: 500 }
+                estimatedCost: { type: number }
+                currency: { type: string, minLength: 3, maxLength: 3 }
+                startDate: { type: string, format: date-time }
+      responses:
+        "201": { description: Created }
+  /claims/{id}/repair-jobs/{repairJobId}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - name: repairJobId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [RepairJobs]
+      summary: Get a repair job (includes workshop activity log)
+      responses:
+        "200": { description: OK }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [RepairJobs]
+      summary: Update a repair job's fields
+      responses:
+        "200": { description: OK }
+  /claims/{id}/repair-jobs/{repairJobId}/status:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - name: repairJobId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [RepairJobs]
+      summary: Transition ESTIMATE_PENDING -> APPROVED -> IN_PROGRESS -> COMPLETED, or CANCELLED
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                {
+                  status:
+                    {
+                      type: string,
+                      enum:
+                        [
+                          ESTIMATE_PENDING,
+                          APPROVED,
+                          IN_PROGRESS,
+                          COMPLETED,
+                          CANCELLED,
+                        ],
+                    },
+                }
+      responses:
+        "200": { description: OK }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /claims/{id}/repair-jobs/{repairJobId}/activities:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - name: repairJobId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [RepairJobs]
+      summary: Log a free-text workshop activity entry
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [activityType]
+              properties:
+                activityType: { type: string, maxLength: 100 }
+                notes: { type: string, maxLength: 2000 }
+      responses:
+        "201": { description: Created }
+
+  # --- Settlements & Payments (M14) --------------------------------------
+  /claims/{id}/settlements:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Settlements]
+      summary: List settlements on a claim, with their payments
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items: { $ref: "#/components/schemas/Settlement" },
+                      },
+                  },
+              },
+          }
+    post:
+      tags: [Settlements]
+      summary: Record a settlement (ORG_ADMIN, FINANCE_OFFICER) — starts PENDING
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [claimId, settlementAmount]
+              properties:
+                claimId: { type: string, format: uuid }
+                settlementAmount:
+                  { type: number, minimum: 0, exclusiveMinimum: true }
+                currency:
+                  { type: string, minLength: 3, maxLength: 3, default: INR }
+      responses:
+        "201": { description: Created }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /claims/{id}/settlements/{settlementId}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/SettlementId" }
+    get:
+      tags: [Settlements]
+      summary: Get a settlement with its payments
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/Settlement" } },
+              },
+          }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /claims/{id}/settlements/{settlementId}/approve:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/SettlementId" }
+    post:
+      tags: [Settlements]
+      summary: Approve a PENDING settlement (ORG_ADMIN, FINANCE_OFFICER)
+      responses:
+        "200": { description: OK }
+        "409":
+          description: Settlement is not PENDING (already decided)
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/Error" } },
+            }
+  /claims/{id}/settlements/{settlementId}/reject:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/SettlementId" }
+    post:
+      tags: [Settlements]
+      summary: Reject a PENDING settlement — never blocks claim closure, even if unpaid
+      responses:
+        "200": { description: OK }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /claims/{id}/settlements/{settlementId}/payments:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/SettlementId" }
+    get:
+      tags: [Payments]
+      summary: List payments recorded against a settlement
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items: { $ref: "#/components/schemas/Payment" },
+                      },
+                  },
+              },
+          }
+    post:
+      tags: [Payments]
+      summary: Record a payment (ORG_ADMIN, FINANCE_OFFICER) — settlement must be APPROVED; a settlement can be split across multiple payments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, paymentDate]
+              properties:
+                amount: { type: number, minimum: 0, exclusiveMinimum: true }
+                currency: { type: string, minLength: 3, maxLength: 3 }
+                paymentDate: { type: string, format: date-time }
+                paymentReference: { type: string, maxLength: 200 }
+                paymentMethod:
+                  {
+                    type: string,
+                    enum: [BANK_TRANSFER, CHEQUE, CASH, UPI, OTHER],
+                  }
+      responses:
+        "201": { description: Created }
+        "409":
+          description: Settlement is not APPROVED
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/Error" } },
+            }
+  /claims/{id}/settlements/{settlementId}/payments/{paymentId}/reconcile:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/SettlementId" }
+      - name: paymentId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Payments]
+      summary: Mark a payment reconciled (ORG_ADMIN, FINANCE_OFFICER)
+      responses:
+        "200": { description: OK }
+        "404":
+          description: Payment not found (also returned, deliberately, for a payment in another org — see docs/PAYMENTS.md)
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/Error" } },
+            }
+        "409":
+          description: Payment is already reconciled
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/Error" } },
+            }
+
+  # --- Documents & OCR (M5, M11) ------------------------------------------
+  /documents:
+    get:
+      tags: [Documents]
+      summary: List documents linked to an entity
+      parameters:
+        - name: linkedEntityType
+          in: query
+          required: true
+          schema: { $ref: "#/components/schemas/LinkedEntityType" }
+        - name: linkedEntityId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items: { $ref: "#/components/schemas/Document" },
+                      },
+                  },
+              },
+          }
+  /documents/presign-upload:
+    post:
+      tags: [Documents]
+      summary: Presign a direct-to-S3 upload for a brand-new document (step 1 of 2)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [linkedEntityType, linkedEntityId, fileName]
+              properties:
+                linkedEntityType:
+                  { $ref: "#/components/schemas/LinkedEntityType" }
+                linkedEntityId: { type: string, format: uuid }
+                fileName: { type: string, maxLength: 200 }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/PresignResult" } },
+              },
+          }
+  /documents/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Documents]
+      summary: Get a document (also records the CompleteNewDocumentSchema fields — step 2 of 2 — via versions/route.ts POST)
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/Document" } },
+              },
+          }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /documents/{id}/download-url:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Documents]
+      summary: A short-lived presigned download URL for the current version
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema: { $ref: "#/components/schemas/DownloadUrlResult" },
+                  },
+              },
+          }
+  /documents/{id}/versions:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Documents]
+      summary: Complete a brand-new document upload (BR-04's step 2) — also records the Document + first DocumentVersion + DocumentLink, and enqueues OCR extraction
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                [
+                  storageKey,
+                  fileName,
+                  documentType,
+                  title,
+                  linkedEntityType,
+                  linkedEntityId,
+                ]
+              properties:
+                storageKey: { type: string }
+                fileName: { type: string, maxLength: 200 }
+                documentType: { $ref: "#/components/schemas/DocumentType" }
+                title: { type: string, maxLength: 200 }
+                linkedEntityType:
+                  { $ref: "#/components/schemas/LinkedEntityType" }
+                linkedEntityId: { type: string, format: uuid }
+                validityStartDate: { type: string, format: date-time }
+                validityExpiryDate: { type: string, format: date-time }
+      responses:
+        "201": { description: Created }
+  /documents/{id}/versions/presign-upload:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Documents]
+      summary: Presign an upload for a new version of an existing document
+      requestBody:
+        content:
+          application/json:
+            schema:
+              {
+                type: object,
+                required: [fileName],
+                properties: { fileName: { type: string, maxLength: 200 } },
+              }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/PresignResult" } },
+              },
+          }
+    put:
+      tags: [Documents]
+      summary: Complete a new-version upload (BR-04) — makes it the current version, enqueues OCR extraction
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [storageKey, fileName]
+              properties:
+                storageKey: { type: string }
+                fileName: { type: string, maxLength: 200 }
+      responses:
+        "201": { description: Created }
+  /documents/{id}/versions/{versionId}/ocr:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/VersionId" }
+    get:
+      tags: [OCR]
+      summary: Get a document version's OCR extraction (PENDING/EXTRACTED/VERIFIED/REJECTED)
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/OcrExtraction" } },
+              },
+          }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /documents/{id}/versions/{versionId}/ocr/verify:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/VersionId" }
+    post:
+      tags: [OCR]
+      summary: >
+        Apply selected extracted fields to master data — BR-07's one
+        combined select-and-apply action; there is no separate
+        "apply" step.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                applyFieldKeys:
+                  { type: array, items: { type: string }, default: [] }
+      responses:
+        "200": { description: OK }
+        "409":
+          description: Extraction is not EXTRACTED (already verified/rejected)
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/Error" } },
+            }
+  /documents/{id}/versions/{versionId}/ocr/reject:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/VersionId" }
+    post:
+      tags: [OCR]
+      summary: Reject an extraction without applying anything to master data
+      responses:
+        "200": { description: OK }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  # --- TAT (M8) -----------------------------------------------------------
+  /tat/stage-templates:
+    get:
+      tags: [TAT]
+      summary: List this org's stage templates
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items:
+                          { $ref: "#/components/schemas/TatStageTemplate" },
+                      },
+                  },
+              },
+          }
+    post:
+      tags: [TAT]
+      summary: Configure a stage template (ORG_ADMIN)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                [caseType, stageKey, stageName, sequenceOrder, targetHours]
+              properties:
+                caseType: { $ref: "#/components/schemas/CaseType" }
+                stageKey: { type: string, pattern: "^[A-Z0-9_]+$" }
+                stageName: { type: string, maxLength: 200 }
+                sequenceOrder: { type: integer, minimum: 0 }
+                targetHours:
+                  { type: integer, minimum: 0, exclusiveMinimum: true }
+                isActive: { type: boolean }
+      responses:
+        "201": { description: Created }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /tat/stage-templates/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [TAT]
+      summary: Update a stage template (ORG_ADMIN) — caseType/stageKey are immutable
+      responses:
+        "200": { description: OK }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /tat/stage-instances:
+    get:
+      tags: [TAT]
+      summary: List stage instances for a case (query by incidentId or claimId)
+      parameters:
+        - {
+            name: incidentId,
+            in: query,
+            schema: { type: string, format: uuid },
+          }
+        - { name: claimId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items:
+                          { $ref: "#/components/schemas/CaseStageInstance" },
+                      },
+                  },
+              },
+          }
+  /tat/stage-instances/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [TAT]
+      summary: Get a stage instance
+      responses:
+        "200": { description: OK }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /tat/stage-instances/{id}/complete:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [TAT]
+      summary: Mark a stage complete and auto-start the next stage in sequence
+      responses:
+        "200": { description: OK }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /tat/stage-instances/{id}/hold:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [TAT]
+      summary: Start an on-hold period (PR-02) — pauses TAT elapsed-time accounting
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason, responsibleParty]
+              properties:
+                reason: { type: string, maxLength: 500 }
+                responsibleParty:
+                  {
+                    type: string,
+                    enum: [INTERNAL, CUSTOMER, THIRD_PARTY, INSURER, OTHER],
+                  }
+      responses:
+        "200": { description: OK }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /tat/stage-instances/{id}/hold/end:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [TAT]
+      summary: End the active on-hold period, extending dueAt by the held duration
+      responses:
+        "200": { description: OK }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  # --- Escalations (M13) ---------------------------------------------------
+  /escalation-rules:
+    get:
+      tags: [Escalations]
+      summary: List this org's escalation rules
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items: { $ref: "#/components/schemas/EscalationRule" },
+                      },
+                  },
+              },
+          }
+    post:
+      tags: [Escalations]
+      summary: Configure an escalation rule (ORG_ADMIN) — exactly one of notifyRole/notifyUserId
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                [stageTemplateId, escalationLevel, triggerAfterHoursBeyondTat]
+              properties:
+                stageTemplateId: { type: string, format: uuid }
+                escalationLevel:
+                  { type: integer, minimum: 0, exclusiveMinimum: true }
+                triggerAfterHoursBeyondTat: { type: integer, minimum: 0 }
+                notifyRole: { $ref: "#/components/schemas/UserRole" }
+                notifyUserId: { type: string, format: uuid }
+                channel:
+                  { type: string, enum: [EMAIL, WHATSAPP, SMS], default: EMAIL }
+      responses:
+        "201": { description: Created }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /escalation-rules/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [Escalations]
+      summary: Update an escalation rule (ORG_ADMIN)
+      responses:
+        "200": { description: OK }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /escalations/scan:
+    post:
+      tags: [Escalations]
+      summary: Manually trigger an escalation scan for the caller's org (ORG_ADMIN) — also runs automatically every 15 minutes via a BullMQ repeatable job
+      responses:
+        "200":
+          description: Scan result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fired: { type: integer }
+                  skipped: { type: integer }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  # --- Dashboards (M9) -----------------------------------------------------
+  /dashboards/operational:
+    get:
+      tags: [Dashboards]
+      summary: Org-wide or depot-filtered operational counts (incident/claim status, TAT breaches, aging buckets)
+      parameters:
+        - name: depotId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: cm_fim_session
+      description: >
+        An encrypted JWT (jose/HS256) wrapping {sessionId}. The real
+        authorization check is the DB-backed Session row this points at
+        (lib/dal.ts's verifySession()) — see docs/AUTH.md. Minted at
+        login; there is no separate token-issuing endpoint in this API.
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SettlementId:
+      name: settlementId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VersionId:
+      name: versionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  requestBodies:
+    CreateCity:
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string, maxLength: 120 }
+              state: { type: string, maxLength: 120 }
+
+  responses:
+    Unauthorized:
+      description: No valid session (401)
+      content:
+        { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Forbidden:
+      description: Session exists but the role isn't allowed (403)
+      content:
+        { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Not found, or exists in another organization (404) — org-scoping never distinguishes the two
+      content:
+        { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Conflict:
+      description: A business-rule violation (409) — see DomainError in lib/domain-error.ts
+      content:
+        { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    ValidationError:
+      description: Request body failed Zod validation (400)
+      content:
+        { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        depotId: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { $ref: "#/components/schemas/UserRole" }
+        status: { type: string, enum: [ACTIVE, INACTIVE, SUSPENDED] }
+    UserRole:
+      type: string
+      enum:
+        [
+          SUPER_ADMIN,
+          ORG_ADMIN,
+          DEPOT_MANAGER,
+          CLAIMS_MANAGER,
+          SURVEYOR,
+          WORKSHOP_COORDINATOR,
+          FINANCE_OFFICER,
+          AUDITOR,
+          WHATSAPP_BOT,
+        ]
+
+    City:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        name: { type: string }
+        state: { type: string, nullable: true }
+    Depot:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        cityId: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        address: { type: string, nullable: true }
+    VehicleType:
+      type: string
+      enum: [TRUCK, TRAILER, BUS, CAR, TWO_WHEELER, OTHER]
+    Vehicle:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        depotId: { type: string, format: uuid }
+        registrationNumber: { type: string }
+        chassisNumber: { type: string, nullable: true }
+        engineNumber: { type: string, nullable: true }
+        make: { type: string, nullable: true }
+        model: { type: string, nullable: true }
+        vehicleType: { $ref: "#/components/schemas/VehicleType" }
+        manufactureYear: { type: integer, nullable: true }
+        status: { type: string, enum: [ACTIVE, INACTIVE, SOLD, SCRAPPED] }
+    Driver:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        depotId: { type: string, format: uuid }
+        name: { type: string }
+        licenseNumber: { type: string }
+        licenseExpiryDate: { type: string, format: date-time, nullable: true }
+        phone: { type: string, nullable: true }
+        status: { type: string, enum: [ACTIVE, INACTIVE, SUSPENDED] }
+
+    IncidentType:
+      type: string
+      enum:
+        [
+          ACCIDENT,
+          THEFT,
+          FIRE,
+          BREAKDOWN,
+          NATURAL_DISASTER,
+          THIRD_PARTY_DAMAGE,
+          OTHER,
+        ]
+    IncidentSeverity:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, CRITICAL]
+    Incident:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        incidentNumber: { type: string, example: "INC-2026-000001" }
+        vehicleId: { type: string, format: uuid }
+        driverId: { type: string, format: uuid, nullable: true }
+        depotId: { type: string, format: uuid }
+        incidentDateTime: { type: string, format: date-time }
+        incidentType: { $ref: "#/components/schemas/IncidentType" }
+        severity: { $ref: "#/components/schemas/IncidentSeverity" }
+        description: { type: string }
+        status: { type: string, enum: [OPEN, CLOSED] }
+        reportedById: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+    EvidenceType:
+      type: string
+      enum: [PHOTO, VIDEO, DOCUMENT]
+    Evidence:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        incidentId: { type: string, format: uuid }
+        storageKey: { type: string }
+        fileName: { type: string }
+        evidenceType: { $ref: "#/components/schemas/EvidenceType" }
+        caption: { type: string, nullable: true }
+        uploadedById: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+
+    ClaimType:
+      type: string
+      enum:
+        [
+          INSURANCE,
+          WARRANTY,
+          MAINTENANCE,
+          OPERATIONAL,
+          THIRD_PARTY_RECOVERY,
+          MIXED,
+        ]
+    ClaimStatus:
+      type: string
+      enum:
+        [
+          OPEN,
+          UNDER_SURVEY,
+          UNDER_REPAIR,
+          PENDING_SETTLEMENT,
+          SETTLED,
+          CLOSED,
+          REJECTED,
+        ]
+    Claim:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        claimNumber: { type: string, example: "CLM-2026-000001" }
+        incidentId: { type: string, format: uuid }
+        claimType: { $ref: "#/components/schemas/ClaimType" }
+        policyId: { type: string, format: uuid, nullable: true }
+        status: { $ref: "#/components/schemas/ClaimStatus" }
+        assignedToId: { type: string, format: uuid, nullable: true }
+        openedAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time, nullable: true }
+
+    Survey:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        claimId: { type: string, format: uuid }
+        surveyNumber: { type: string }
+        surveyorName: { type: string }
+        surveyorContact: { type: string, nullable: true }
+        surveyorUserId: { type: string, format: uuid, nullable: true }
+        status:
+          { type: string, enum: [SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED] }
+        scheduledAt: { type: string, format: date-time, nullable: true }
+
+    RepairJob:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        claimId: { type: string, format: uuid }
+        workshopName: { type: string }
+        workshopContact: { type: string, nullable: true }
+        estimatedCost:
+          {
+            type: string,
+            nullable: true,
+            description: "Decimal(14,2), serialized as a string",
+          }
+        currency: { type: string }
+        status:
+          {
+            type: string,
+            enum:
+              [ESTIMATE_PENDING, APPROVED, IN_PROGRESS, COMPLETED, CANCELLED],
+          }
+
+    SettlementStatus:
+      type: string
+      enum: [PENDING, APPROVED, REJECTED]
+    Settlement:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        claimId: { type: string, format: uuid }
+        settlementAmount:
+          { type: string, description: "Decimal(14,2), serialized as a string" }
+        currency: { type: string, example: INR }
+        status: { $ref: "#/components/schemas/SettlementStatus" }
+        approvedById: { type: string, format: uuid, nullable: true }
+        approvedAt: { type: string, format: date-time, nullable: true }
+        payments:
+          type: array
+          items: { $ref: "#/components/schemas/Payment" }
+    Payment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        settlementId: { type: string, format: uuid }
+        amount:
+          { type: string, description: "Decimal(14,2), serialized as a string" }
+        currency: { type: string }
+        paymentDate: { type: string, format: date-time }
+        paymentReference: { type: string, nullable: true }
+        paymentMethod:
+          { type: string, enum: [BANK_TRANSFER, CHEQUE, CASH, UPI, OTHER] }
+        reconciled: { type: boolean }
+        reconciledAt: { type: string, format: date-time, nullable: true }
+        reconciledById: { type: string, format: uuid, nullable: true }
+
+    LinkedEntityType:
+      type: string
+      enum: [VEHICLE, DRIVER, INCIDENT, POLICY, CLAIM, SURVEY, REPAIR_JOB]
+    DocumentType:
+      type: string
+      enum:
+        [
+          REGISTRATION_CERTIFICATE,
+          INSURANCE_POLICY,
+          FITNESS_CERTIFICATE,
+          PERMIT,
+          PUC_CERTIFICATE,
+          DRIVING_LICENSE,
+          REPAIR_ESTIMATE,
+          OTHER,
+        ]
+    Document:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        documentType: { $ref: "#/components/schemas/DocumentType" }
+        title: { type: string }
+        currentVersionId: { type: string, format: uuid, nullable: true }
+        validityStartDate: { type: string, format: date-time, nullable: true }
+        validityExpiryDate: { type: string, format: date-time, nullable: true }
+    PresignResult:
+      type: object
+      properties:
+        uploadUrl: { type: string, format: uri }
+        storageKey: { type: string }
+        expiresInSeconds: { type: integer }
+    DownloadUrlResult:
+      type: object
+      properties:
+        downloadUrl: { type: string, format: uri }
+        expiresInSeconds: { type: integer }
+    OcrExtraction:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        documentVersionId: { type: string, format: uuid }
+        status: { type: string, enum: [PENDING, EXTRACTED, VERIFIED, REJECTED] }
+        extractedFields:
+          type: array
+          items:
+            type: object
+            properties:
+              key: { type: string }
+              value: { type: string }
+              confidence: { type: number }
+        appliedFieldKeys: { type: array, items: { type: string } }
+
+    CaseType:
+      type: string
+      enum:
+        [
+          INCIDENT,
+          INSURANCE_CLAIM,
+          WARRANTY_CLAIM,
+          MAINTENANCE_CLAIM,
+          OPERATIONAL_CLAIM,
+          THIRD_PARTY_RECOVERY_CLAIM,
+          MIXED_CLAIM,
+        ]
+    TatStageTemplate:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        caseType: { $ref: "#/components/schemas/CaseType" }
+        stageKey: { type: string, example: SURVEY }
+        stageName: { type: string }
+        sequenceOrder: { type: integer }
+        targetHours: { type: integer }
+        isActive: { type: boolean }
+    CaseStageInstance:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        incidentId: { type: string, format: uuid, nullable: true }
+        claimId: { type: string, format: uuid, nullable: true }
+        stageTemplateId: { type: string, format: uuid }
+        status:
+          { type: string, enum: [PENDING, IN_PROGRESS, ON_HOLD, COMPLETED] }
+        startedAt: { type: string, format: date-time, nullable: true }
+        dueAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+
+    EscalationRule:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        stageTemplateId: { type: string, format: uuid }
+        escalationLevel: { type: integer }
+        triggerAfterHoursBeyondTat: { type: integer }
+        notifyRole: { $ref: "#/components/schemas/UserRole" }
+        notifyUserId: { type: string, format: uuid, nullable: true }
+        channel: { type: string, enum: [EMAIL, WHATSAPP, SMS] }

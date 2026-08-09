@@ -9,7 +9,7 @@ and payment.
 
 ## Status
 
-**M1–M9, M11, M13, and M14** are done: app scaffold, Docker Compose, tooling,
+**M1–M9, M11, and M13–M15** are done: app scaffold, Docker Compose, tooling,
 the full Phase 1 Prisma schema, credential login/logout with
 database-backed sessions, role gating and org-scoping,
 City/Depot/Vehicle/Driver CRUD with depot-scoped RBAC and audit logging, a
@@ -31,20 +31,24 @@ scheduler, a configurable escalation hierarchy wired to TAT breaches, and
 a real `EmailProvider` stub, per PR-03), and payment & closure
 (settlement create/approve/reject, payment recording and reconciliation,
 and BR-09's closure-blocking rule — no claim reaches `CLOSED` until every
-non-rejected settlement on it is approved, fully paid, and reconciled).
-M10 (WhatsApp) and M12 (Telematics) are deferred pending JBM credentials;
-the rest of the roadmap continues from M15. See
-[`docs/SCOPE.md`](docs/SCOPE.md) for the milestone plan,
-[`docs/schema/`](docs/schema/), [`docs/AUTH.md`](docs/AUTH.md),
-[`docs/MASTERS.md`](docs/MASTERS.md),
+non-rejected settlement on it is approved, fully paid, and reconciled),
+and testing/deployment hardening (a realistic multi-depot JBM demo seed
+dataset, a full green test suite — 149 unit/integration tests plus a
+real-HTTP e2e smoke script, a hand-maintained OpenAPI spec for the whole
+API surface, and deployment/runbook docs). M10 (WhatsApp) and M12
+(Telematics) are deferred pending JBM credentials; the roadmap otherwise
+continues with whatever's scoped next. See [`docs/SCOPE.md`](docs/SCOPE.md)
+for the milestone plan, [`docs/schema/`](docs/schema/),
+[`docs/AUTH.md`](docs/AUTH.md), [`docs/MASTERS.md`](docs/MASTERS.md),
 [`docs/DOCUMENTS.md`](docs/DOCUMENTS.md),
 [`docs/INCIDENTS.md`](docs/INCIDENTS.md),
 [`docs/CLAIMS.md`](docs/CLAIMS.md), [`docs/TAT.md`](docs/TAT.md),
 [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md), [`docs/OCR.md`](docs/OCR.md),
-[`docs/ESCALATIONS.md`](docs/ESCALATIONS.md), and
-[`docs/PAYMENTS.md`](docs/PAYMENTS.md) for what's implemented so far, and
-[`docs/RULES.md`](docs/RULES.md) for the Business Rules / Process Rules
-the system is being built against.
+[`docs/ESCALATIONS.md`](docs/ESCALATIONS.md),
+[`docs/PAYMENTS.md`](docs/PAYMENTS.md), [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md),
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md), and [`docs/openapi.yaml`](docs/openapi.yaml)
+for what's implemented so far, and [`docs/RULES.md`](docs/RULES.md) for
+the Business Rules / Process Rules the system is being built against.
 
 Try it locally: seed the dev database (`npm run db:seed`) and sign in at
 `/login` with `admin@jbm.example` / `ChangeMe123!` (dev-only credentials,
@@ -69,7 +73,7 @@ docker compose up postgres redis minio minio-init -d
 
 npm install
 npm run db:migrate     # apply migrations (creates the schema)
-npm run db:seed         # creates a JBM org + an admin login for local testing
+npm run db:seed         # realistic JBM demo dataset (masters, users per role, sample claims)
 npm run dev              # Next.js app on http://localhost:3000
 npm run worker:dev        # BullMQ worker process, in a second terminal
 ```
@@ -95,7 +99,8 @@ docker compose up --build
 | `npm run db:migrate` | Create/apply a dev migration |
 | `npm run db:migrate:deploy` | Apply migrations without generating a new one (CI/prod) |
 | `npm run db:studio` | Prisma Studio (DB browser) |
-| `npm run db:seed` | Seed a dev-only JBM org + admin login |
+| `npm run db:seed` | Seed a dev-only, realistic JBM demo dataset (masters data, one user per role, sample claims across the lifecycle) |
+| `npm run test:e2e` | Real-HTTP e2e smoke test against a running build (see `docs/RUNBOOK.md`) |
 
 Document-repository, evidence, and OCR tests (`lib/documents/*.test.ts`,
 `lib/incidents/evidence.integration.test.ts`, `lib/ocr/*.test.ts`) each
@@ -129,3 +134,6 @@ too, not just OCR's own tests.
 - [`docs/OCR.md`](docs/OCR.md) — OCR/document parsing: the provider adapter, async extraction, human-verification, and a real `server-only`-vs-worker bug found and fixed while building it.
 - [`docs/ESCALATIONS.md`](docs/ESCALATIONS.md) — notifications/escalations: the reminder scheduler, escalation hierarchy, the `EscalationEvent` schema addition, and how it was verified with a real worker process.
 - [`docs/PAYMENTS.md`](docs/PAYMENTS.md) — payment & closure: settlement/payment recording, reconciliation, BR-09's closure gate, a real cross-org bug found and fixed while building it, and how it was verified over real HTTP.
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — deploying beyond local docker-compose: the two runtime images, full env-var reference, migrations, health checks, scaling notes.
+- [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — common day-2 ops tasks: seeding, restarting the worker, triggering an escalation scan, checking queue health, the audit trail, running the e2e smoke test.
+- [`docs/openapi.yaml`](docs/openapi.yaml) — OpenAPI 3.0 spec for the full `/api` surface, hand-maintained against the real route handlers.

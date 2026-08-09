@@ -154,7 +154,7 @@ tracked as the first task inside the milestone, not skipped.
 | M12 | **Telematics adapter + JBM integration** | `TelematicsProvider` interface, stub adapter for dev/demo, incident-time snapshot capture job, JBM adapter stub (real impl pending API access) | M6 |
 | M13 ✅ | **Notifications/escalations** | Reminder scheduler (repeatable BullMQ job), configurable escalation hierarchy wired to `case_stage_instance` breaches, email delivery via a real `EmailProvider` stub. WhatsApp/SMS-channel firing deferred pending M10/an SMS adapter. See [`docs/ESCALATIONS.md`](ESCALATIONS.md). | M8 |
 | M14 ✅ | **Payment & closure** | Settlement create/approve/reject, payment recording + reconciliation, BR-09 closure-blocking rule (no `CLOSED` until every non-rejected settlement is approved, fully paid, and reconciled). See [`docs/PAYMENTS.md`](PAYMENTS.md). | M7, M8 |
-| M15 | **Testing & deployment hardening** | Full test pass (unit/integration/e2e), OpenAPI doc generation, JBM seed dataset, deployment docs, README/runbook | All prior |
+| M15 ✅ | **Testing & deployment hardening** | Full test pass (149 unit/integration tests + a real-HTTP e2e smoke script), a hand-maintained OpenAPI spec, a realistic multi-depot JBM seed dataset, deployment docs, and an ops runbook. See [`docs/DEPLOYMENT.md`](DEPLOYMENT.md) and [`docs/RUNBOOK.md`](RUNBOOK.md). | All prior |
 
 Survey management and workshop/repair tracking are delivered inside M7/M8's
 claim-lifecycle slice rather than as standalone milestones, since they are
