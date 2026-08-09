@@ -9,30 +9,34 @@ and payment.
 
 ## Status
 
-**M1–M9** are done: app scaffold, Docker Compose, tooling, the full Phase 1
-Prisma schema, credential login/logout with database-backed sessions, role
-gating and org-scoping, City/Depot/Vehicle/Driver CRUD with depot-scoped
-RBAC and audit logging, a document repository (presigned-URL upload,
-versioning, linked to vehicles/drivers), incident creation/editing with an
-OPEN/CLOSED state machine, `INC-YYYY-######` IDs and photo/video/document
-evidence attachment, the claim workflow (incident→claim conversion, BR-05
-policy auto-selection, the `ClaimStatus` state machine
-(`CLM-YYYY-######`), surveys, and workshop/repair job tracking), a TAT
-engine (configurable per-org/case-type stage templates, sequential
-auto-instantiated stage tracking with on-hold periods, and elapsed-time
-calculation excluding held time), and an operational dashboard (org-wide
-or depot-filtered incident/claim status counts, TAT breach counts, and
-aging, backed by live queries — no mocks). WhatsApp/OCR/telematics
-integrations and the rest of the roadmap start at M10+. See
-[`docs/SCOPE.md`](docs/SCOPE.md) for the milestone plan,
-[`docs/schema/`](docs/schema/), [`docs/AUTH.md`](docs/AUTH.md),
-[`docs/MASTERS.md`](docs/MASTERS.md),
+**M1–M9 and M11** are done: app scaffold, Docker Compose, tooling, the
+full Phase 1 Prisma schema, credential login/logout with database-backed
+sessions, role gating and org-scoping, City/Depot/Vehicle/Driver CRUD with
+depot-scoped RBAC and audit logging, a document repository (presigned-URL
+upload, versioning, linked to vehicles/drivers), incident creation/editing
+with an OPEN/CLOSED state machine, `INC-YYYY-######` IDs and
+photo/video/document evidence attachment, the claim workflow
+(incident→claim conversion, BR-05 policy auto-selection, the
+`ClaimStatus` state machine (`CLM-YYYY-######`), surveys, and
+workshop/repair job tracking), a TAT engine (configurable per-org/case-type
+stage templates, sequential auto-instantiated stage tracking with on-hold
+periods, and elapsed-time calculation excluding held time), an operational
+dashboard (org-wide or depot-filtered incident/claim status counts, TAT
+breach counts, and aging, backed by live queries — no mocks), and OCR/
+document parsing (an `OCRProvider` adapter with a real deterministic
+stub, an async BullMQ extraction job, and human-verification that's the
+only path fields ever reach master data, per BR-07). M10 (WhatsApp) and
+M12 (Telematics) are deferred pending JBM credentials; the rest of the
+roadmap continues from M13. See [`docs/SCOPE.md`](docs/SCOPE.md) for the
+milestone plan, [`docs/schema/`](docs/schema/),
+[`docs/AUTH.md`](docs/AUTH.md), [`docs/MASTERS.md`](docs/MASTERS.md),
 [`docs/DOCUMENTS.md`](docs/DOCUMENTS.md),
 [`docs/INCIDENTS.md`](docs/INCIDENTS.md),
-[`docs/CLAIMS.md`](docs/CLAIMS.md), [`docs/TAT.md`](docs/TAT.md), and
-[`docs/DASHBOARDS.md`](docs/DASHBOARDS.md) for what's implemented so far,
-and [`docs/RULES.md`](docs/RULES.md) for the Business Rules / Process
-Rules the system is being built against.
+[`docs/CLAIMS.md`](docs/CLAIMS.md), [`docs/TAT.md`](docs/TAT.md),
+[`docs/DASHBOARDS.md`](docs/DASHBOARDS.md), and
+[`docs/OCR.md`](docs/OCR.md) for what's implemented so far, and
+[`docs/RULES.md`](docs/RULES.md) for the Business Rules / Process Rules
+the system is being built against.
 
 Try it locally: seed the dev database (`npm run db:seed`) and sign in at
 `/login` with `admin@jbm.example` / `ChangeMe123!` (dev-only credentials,
@@ -85,16 +89,22 @@ docker compose up --build
 | `npm run db:studio` | Prisma Studio (DB browser) |
 | `npm run db:seed` | Seed a dev-only JBM org + admin login |
 
-Document-repository and evidence tests (`lib/documents/*.test.ts`,
-`lib/incidents/evidence.integration.test.ts`) each start their own
-in-process S3-compatible test server ([s3rver](https://github.com/jamhall/s3rver))
-in `beforeAll`, on different ports (4569 / 4570) so they can run
-concurrently — no MinIO/Docker needed to run them, but they do need
+Document-repository, evidence, and OCR tests (`lib/documents/*.test.ts`,
+`lib/incidents/evidence.integration.test.ts`, `lib/ocr/*.test.ts`) each
+start their own in-process S3-compatible test server
+([s3rver](https://github.com/jamhall/s3rver)) in `beforeAll`, on
+different ports (4569 / 4570 / 4571) so they can run concurrently — no
+MinIO/Docker needed to run them, but they do need
 `S3_ENDPOINT=http://localhost:4569`, `S3_REGION=us-east-1`,
 `S3_ACCESS_KEY_ID=S3RVER`, `S3_SECRET_ACCESS_KEY=S3RVER`,
 `S3_BUCKET=cm-fim-documents-test`, `S3_FORCE_PATH_STYLE=true` set
 alongside `DATABASE_URL`/`SESSION_SECRET` when running `npm run test`
-(the evidence suite overrides these to its own port internally).
+(the evidence/OCR suites override these to their own ports internally).
+Since M11, `REDIS_URL=redis://localhost:6379` (a real Redis — no
+Docker/MinIO needed, `redis-server` runs standalone) is also required for
+the full suite: completing a document upload now enqueues a real BullMQ
+job (`lib/ocr/queue.ts`), so document/evidence tests need Redis reachable
+too, not just OCR's own tests.
 
 ## Docs
 
@@ -108,3 +118,4 @@ alongside `DATABASE_URL`/`SESSION_SECRET` when running `npm run test`
 - [`docs/CLAIMS.md`](docs/CLAIMS.md) — claim workflow, BR-05 policy auto-selection, surveys, workshop/repair jobs, and how it was verified.
 - [`docs/TAT.md`](docs/TAT.md) — the TAT engine: configurable stage templates, sequential auto-instantiation, on-hold periods, and elapsed-time calculation excluding holds.
 - [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md) — the operational dashboard: status counts, TAT breach counts, aging, and how it was verified.
+- [`docs/OCR.md`](docs/OCR.md) — OCR/document parsing: the provider adapter, async extraction, human-verification, and a real `server-only`-vs-worker bug found and fixed while building it.

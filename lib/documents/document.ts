@@ -20,6 +20,7 @@ import {
   assertCanManageDocumentsFor,
   assertCanReadDocumentsFor,
 } from "@/lib/documents/link-scope";
+import { enqueueOcrExtraction } from "@/lib/ocr/queue";
 import { DocumentType } from "@/lib/generated/prisma/enums";
 
 // BR-04: documents are versioned, never overwritten in place. Upload is a
@@ -208,6 +209,16 @@ export async function completeNewDocumentUpload(
         linkedEntityId: data.linkedEntityId,
       },
     });
+    // M11: eagerly create the OcrExtraction row (PENDING) so the document
+    // immediately shows "extraction pending" without waiting on the
+    // worker — the job (enqueued below, once this transaction commits)
+    // fills it in. See docs/OCR.md.
+    await tx.ocrExtraction.create({
+      data: {
+        documentVersionId: version.id,
+        provider: process.env.OCR_PROVIDER ?? "stub",
+      },
+    });
     return doc;
   });
 
@@ -226,9 +237,11 @@ export async function completeNewDocumentUpload(
     sourceChannel: "WEB",
   });
 
+  const created = (await getDocument(session, document.id))!;
+  await enqueueOcrExtraction(created.currentVersionId!);
   // Non-null: we just created this document in the transaction above —
   // a null here would mean getDocument()'s own org-scoping is broken.
-  return (await getDocument(session, document.id))!;
+  return created;
 }
 
 export const CompleteNewVersionSchema = z.object({
@@ -284,6 +297,15 @@ export async function completeNewVersionUpload(
       where: { id: documentId },
       data: { currentVersionId: v.id },
     });
+    // M11: same eager PENDING row as completeNewDocumentUpload — every
+    // version gets its own extraction, versions are never re-OCR'd in
+    // place any more than they're overwritten in place (BR-04).
+    await tx.ocrExtraction.create({
+      data: {
+        documentVersionId: v.id,
+        provider: process.env.OCR_PROVIDER ?? "stub",
+      },
+    });
     return v;
   });
 
@@ -301,6 +323,7 @@ export async function completeNewVersionUpload(
     sourceChannel: "WEB",
   });
 
+  await enqueueOcrExtraction(version.id);
   return version;
 }
 

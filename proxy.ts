@@ -26,6 +26,7 @@ const PROTECTED_PREFIXES = [
   "/claims",
   "/tat",
   "/dashboards",
+  "/documents",
 ];
 const AUTH_ROUTES = ["/login"];
 
@@ -63,6 +64,7 @@ export const config = {
     "/claims/:path*",
     "/tat/:path*",
     "/dashboards/:path*",
+    "/documents/:path*",
     "/login",
   ],
 };

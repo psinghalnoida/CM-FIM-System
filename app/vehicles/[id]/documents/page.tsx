@@ -8,8 +8,8 @@ import { DownloadDocumentLink } from "@/components/documents/download-document-l
 
 // Simple demo page proving M5's document repository end-to-end against a
 // real entity. Full document management UI (edit metadata, version
-// history browsing, OCR-verification once M11 lands) is deferred — see
-// docs/DOCUMENTS.md.
+// history browsing) is deferred — see docs/DOCUMENTS.md. OCR review
+// (M11) links out to /documents/[id]/ocr — see docs/OCR.md.
 export default async function VehicleDocumentsPage({
   params,
 }: {
@@ -46,6 +46,7 @@ export default async function VehicleDocumentsPage({
             <th className="py-2">Version</th>
             <th className="py-2">File</th>
             <th className="py-2"></th>
+            <th className="py-2"></th>
           </tr>
         </thead>
         <tbody>
@@ -60,12 +61,20 @@ export default async function VehicleDocumentsPage({
               <td className="py-2">
                 <DownloadDocumentLink documentId={doc.id} />
               </td>
+              <td className="py-2">
+                <Link
+                  href={`/documents/${doc.id}/ocr`}
+                  className="text-primary underline underline-offset-4"
+                >
+                  OCR
+                </Link>
+              </td>
             </tr>
           ))}
           {documents.length === 0 && (
             <tr>
               <td
-                colSpan={5}
+                colSpan={6}
                 className="text-muted-foreground py-4 text-center"
               >
                 No documents yet.

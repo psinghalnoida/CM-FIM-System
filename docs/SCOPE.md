@@ -150,7 +150,7 @@ tracked as the first task inside the milestone, not skipped.
 | # | Milestone | Delivers | Depends on |
 |---|---|---|---|
 | M10 | **WhatsApp integration** | Meta Cloud API webhook intake, incident creation from WhatsApp messages, media download into evidence store, `WhatsAppProvider` interface | M6 |
-| M11 | **OCR/document parsing** | Textract adapter behind `OCRProvider`, async extraction job, human-verification UI, master-data protection (no silent overwrite) | M5, BullMQ from M1 |
+| M11 ✅ | **OCR/document parsing** | `OCRProvider` adapter + a real deterministic stub, async extraction job (BullMQ), human-verification UI, master-data protection (BR-07 — no silent overwrite; a real Textract adapter is a follow-up pending AWS credentials). See [`docs/OCR.md`](OCR.md). | M5, BullMQ from M1 |
 | M12 | **Telematics adapter + JBM integration** | `TelematicsProvider` interface, stub adapter for dev/demo, incident-time snapshot capture job, JBM adapter stub (real impl pending API access) | M6 |
 | M13 | **Notifications/escalations** | Reminder scheduler, configurable escalation hierarchy wired to `case_stage_instance` breaches, email delivery via `EmailProvider` | M8 |
 | M14 | **Payment & closure** | Settlement/payment recording, reconciliation, closure-blocking rule (no final closure until settlement satisfied) | M7, M8 |
