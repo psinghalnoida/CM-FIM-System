@@ -9,6 +9,11 @@ import { CreateSurveyForm } from "@/components/claims/create-survey-form";
 import { CreateRepairJobForm } from "@/components/claims/create-repair-job-form";
 import { listStageInstancesForCase } from "@/lib/tat/case-stage";
 import { StageInstancePanel } from "@/components/tat/stage-instance-panel";
+import { listSettlementsForClaim } from "@/lib/settlements/settlement";
+import { CreateSettlementForm } from "@/components/settlements/create-settlement-form";
+import { SettlementActions } from "@/components/settlements/settlement-actions";
+import { CreatePaymentForm } from "@/components/settlements/create-payment-form";
+import { ReconcilePaymentButton } from "@/components/settlements/reconcile-payment-button";
 
 export default async function ClaimDetailPage({
   params,
@@ -23,6 +28,7 @@ export default async function ClaimDetailPage({
   const stages = await listStageInstancesForCase(session, {
     claimId: claim.id,
   });
+  const settlements = await listSettlementsForClaim(session, claim.id);
 
   return (
     <div className="mx-auto max-w-3xl p-8">
@@ -151,6 +157,91 @@ export default async function ClaimDetailPage({
         TAT stages
       </h2>
       <StageInstancePanel instances={stages} />
+
+      <h2 className="mt-8 mb-2 text-lg font-semibold tracking-tight">
+        Settlements
+      </h2>
+      <div className="mb-4 flex flex-col gap-4">
+        {settlements.map((settlement) => (
+          <div
+            key={settlement.id}
+            className="border-border rounded-md border p-3"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm">
+                {settlement.currency} {settlement.settlementAmount.toString()} —{" "}
+                {settlement.status}
+              </span>
+              {settlement.status === "PENDING" && (
+                <SettlementActions
+                  claimId={claim.id}
+                  settlementId={settlement.id}
+                />
+              )}
+            </div>
+
+            <table className="mb-2 w-full text-left text-sm">
+              <thead>
+                <tr className="border-border border-b">
+                  <th className="py-1">Amount</th>
+                  <th className="py-1">Date</th>
+                  <th className="py-1">Reference</th>
+                  <th className="py-1">Reconciled</th>
+                  <th className="py-1"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {settlement.payments.map((payment) => (
+                  <tr key={payment.id} className="border-border border-b">
+                    <td className="py-1">
+                      {payment.currency} {payment.amount.toString()}
+                    </td>
+                    <td className="py-1">
+                      {new Date(payment.paymentDate).toLocaleDateString()}
+                    </td>
+                    <td className="py-1">{payment.paymentReference ?? "—"}</td>
+                    <td className="py-1">
+                      {payment.reconciled ? "Yes" : "No"}
+                    </td>
+                    <td className="py-1">
+                      {!payment.reconciled && (
+                        <ReconcilePaymentButton
+                          claimId={claim.id}
+                          settlementId={settlement.id}
+                          paymentId={payment.id}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {settlement.payments.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="text-muted-foreground py-2 text-center"
+                    >
+                      No payments recorded yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {settlement.status === "APPROVED" && (
+              <CreatePaymentForm
+                claimId={claim.id}
+                settlementId={settlement.id}
+              />
+            )}
+          </div>
+        ))}
+        {settlements.length === 0 && (
+          <p className="text-muted-foreground text-sm">
+            No settlements recorded yet.
+          </p>
+        )}
+      </div>
+      <CreateSettlementForm claimId={claim.id} />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { recordAudit } from "@/lib/audit";
 import { assertDepotInScope, depotScopeFor } from "@/lib/masters/depot-scope";
 import { DomainError } from "@/lib/domain-error";
 import { instantiateStagesForCase } from "@/lib/tat/case-stage";
+import { assertClaimSettlementSatisfied } from "@/lib/settlements/settlement";
 import { ClaimType, ClaimStatus, CaseType } from "@/lib/generated/prisma/enums";
 
 // M8: every ClaimType maps to a CaseType one-to-one (the enums mirror
@@ -220,6 +221,13 @@ export async function transitionClaimStatus(
       `Cannot transition a claim from ${before.status} to ${to}.`,
       409,
     );
+  }
+
+  // BR-09: the one place M7 deliberately left unenforced ("no claim-aware
+  // checks yet... revisit when M14 lands" — docs/CLAIMS.md). Every other
+  // transition needs no financial gate; only reaching CLOSED does.
+  if (to === ClaimStatus.CLOSED) {
+    await assertClaimSettlementSatisfied(session.user.organizationId, id);
   }
 
   const claim = await scoped.claim.update({

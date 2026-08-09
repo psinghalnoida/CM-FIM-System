@@ -153,7 +153,7 @@ tracked as the first task inside the milestone, not skipped.
 | M11 ✅ | **OCR/document parsing** | `OCRProvider` adapter + a real deterministic stub, async extraction job (BullMQ), human-verification UI, master-data protection (BR-07 — no silent overwrite; a real Textract adapter is a follow-up pending AWS credentials). See [`docs/OCR.md`](OCR.md). | M5, BullMQ from M1 |
 | M12 | **Telematics adapter + JBM integration** | `TelematicsProvider` interface, stub adapter for dev/demo, incident-time snapshot capture job, JBM adapter stub (real impl pending API access) | M6 |
 | M13 ✅ | **Notifications/escalations** | Reminder scheduler (repeatable BullMQ job), configurable escalation hierarchy wired to `case_stage_instance` breaches, email delivery via a real `EmailProvider` stub. WhatsApp/SMS-channel firing deferred pending M10/an SMS adapter. See [`docs/ESCALATIONS.md`](ESCALATIONS.md). | M8 |
-| M14 | **Payment & closure** | Settlement/payment recording, reconciliation, closure-blocking rule (no final closure until settlement satisfied) | M7, M8 |
+| M14 ✅ | **Payment & closure** | Settlement create/approve/reject, payment recording + reconciliation, BR-09 closure-blocking rule (no `CLOSED` until every non-rejected settlement is approved, fully paid, and reconciled). See [`docs/PAYMENTS.md`](PAYMENTS.md). | M7, M8 |
 | M15 | **Testing & deployment hardening** | Full test pass (unit/integration/e2e), OpenAPI doc generation, JBM seed dataset, deployment docs, README/runbook | All prior |
 
 Survey management and workshop/repair tracking are delivered inside M7/M8's

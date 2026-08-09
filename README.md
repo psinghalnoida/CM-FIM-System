@@ -9,7 +9,7 @@ and payment.
 
 ## Status
 
-**M1–M9, M11, and M13** are done: app scaffold, Docker Compose, tooling,
+**M1–M9, M11, M13, and M14** are done: app scaffold, Docker Compose, tooling,
 the full Phase 1 Prisma schema, credential login/logout with
 database-backed sessions, role gating and org-scoping,
 City/Depot/Vehicle/Driver CRUD with depot-scoped RBAC and audit logging, a
@@ -28,17 +28,21 @@ with a real deterministic stub, an async BullMQ extraction job, and
 human-verification that's the only path fields ever reach master data,
 per BR-07), and notifications/escalations (a repeatable BullMQ reminder
 scheduler, a configurable escalation hierarchy wired to TAT breaches, and
-a real `EmailProvider` stub, per PR-03). M10 (WhatsApp) and M12
-(Telematics) are deferred pending JBM credentials; the rest of the
-roadmap continues from M14. See [`docs/SCOPE.md`](docs/SCOPE.md) for the
-milestone plan, [`docs/schema/`](docs/schema/),
-[`docs/AUTH.md`](docs/AUTH.md), [`docs/MASTERS.md`](docs/MASTERS.md),
+a real `EmailProvider` stub, per PR-03), and payment & closure
+(settlement create/approve/reject, payment recording and reconciliation,
+and BR-09's closure-blocking rule — no claim reaches `CLOSED` until every
+non-rejected settlement on it is approved, fully paid, and reconciled).
+M10 (WhatsApp) and M12 (Telematics) are deferred pending JBM credentials;
+the rest of the roadmap continues from M15. See
+[`docs/SCOPE.md`](docs/SCOPE.md) for the milestone plan,
+[`docs/schema/`](docs/schema/), [`docs/AUTH.md`](docs/AUTH.md),
+[`docs/MASTERS.md`](docs/MASTERS.md),
 [`docs/DOCUMENTS.md`](docs/DOCUMENTS.md),
 [`docs/INCIDENTS.md`](docs/INCIDENTS.md),
 [`docs/CLAIMS.md`](docs/CLAIMS.md), [`docs/TAT.md`](docs/TAT.md),
 [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md), [`docs/OCR.md`](docs/OCR.md),
-and [`docs/ESCALATIONS.md`](docs/ESCALATIONS.md) for what's implemented
-so far, and
+[`docs/ESCALATIONS.md`](docs/ESCALATIONS.md), and
+[`docs/PAYMENTS.md`](docs/PAYMENTS.md) for what's implemented so far, and
 [`docs/RULES.md`](docs/RULES.md) for the Business Rules / Process Rules
 the system is being built against.
 
@@ -124,3 +128,4 @@ too, not just OCR's own tests.
 - [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md) — the operational dashboard: status counts, TAT breach counts, aging, and how it was verified.
 - [`docs/OCR.md`](docs/OCR.md) — OCR/document parsing: the provider adapter, async extraction, human-verification, and a real `server-only`-vs-worker bug found and fixed while building it.
 - [`docs/ESCALATIONS.md`](docs/ESCALATIONS.md) — notifications/escalations: the reminder scheduler, escalation hierarchy, the `EscalationEvent` schema addition, and how it was verified with a real worker process.
+- [`docs/PAYMENTS.md`](docs/PAYMENTS.md) — payment & closure: settlement/payment recording, reconciliation, BR-09's closure gate, a real cross-org bug found and fixed while building it, and how it was verified over real HTTP.
