@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { verifySession } from "@/lib/dal";
 import { logout } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -16,8 +17,34 @@ export default async function DashboardPage() {
         Signed in as {session.user.name} ({session.user.email}) —{" "}
         {session.user.role}
       </p>
+      <nav className="mt-4 flex gap-4 text-sm">
+        <Link
+          href="/cities"
+          className="text-primary underline underline-offset-4"
+        >
+          Cities
+        </Link>
+        <Link
+          href="/depots"
+          className="text-primary underline underline-offset-4"
+        >
+          Depots
+        </Link>
+        <Link
+          href="/vehicles"
+          className="text-primary underline underline-offset-4"
+        >
+          Vehicles
+        </Link>
+        <Link
+          href="/drivers"
+          className="text-primary underline underline-offset-4"
+        >
+          Drivers
+        </Link>
+      </nav>
       <form action={logout}>
-        <Button type="submit" variant="outline" className="mt-2">
+        <Button type="submit" variant="outline" className="mt-4">
           Sign out
         </Button>
       </form>

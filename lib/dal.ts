@@ -30,6 +30,11 @@ export const getSession = cache(async () => {
   return dbSession;
 });
 
+/** The shape verifySession()/getSession() resolve to when a session exists — the Session row plus its User. Domain services (lib/masters/*, ...) take this as their auth context rather than re-deriving it. */
+export type AuthSession = NonNullable<
+  Awaited<ReturnType<typeof getActiveDbSession>>
+>;
+
 /**
  * Like getSession(), but for routes/actions that require a signed-in user:
  * throws Next's unauthorized() (401) instead of returning null. Call this,

@@ -16,7 +16,13 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/lib/session-crypto";
 
-const PROTECTED_PREFIXES = ["/dashboard"];
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/cities",
+  "/depots",
+  "/vehicles",
+  "/drivers",
+];
 const AUTH_ROUTES = ["/login"];
 
 export async function proxy(request: NextRequest) {
@@ -43,5 +49,12 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login"],
+  matcher: [
+    "/dashboard/:path*",
+    "/cities/:path*",
+    "/depots/:path*",
+    "/vehicles/:path*",
+    "/drivers/:path*",
+    "/login",
+  ],
 };

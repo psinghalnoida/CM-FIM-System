@@ -9,13 +9,16 @@ and payment.
 
 ## Status
 
-**M1 (Foundations), M2 (Database schema, M2a+M2b), and M3 (Auth & RBAC)**
-are done: app scaffold, Docker Compose, tooling, the full Phase 1 Prisma
-schema, and credential login/logout with database-backed sessions, role
-gating, and org-scoping. No business-module UI yet (vehicle/driver master,
-incidents, claims, ... start at M4). See [`docs/SCOPE.md`](docs/SCOPE.md)
-for the milestone plan, [`docs/schema/`](docs/schema/) and
-[`docs/AUTH.md`](docs/AUTH.md) for what's implemented so far, and
+**M1 (Foundations), M2 (Database schema), M3 (Auth & RBAC), and M4
+(Vehicle/depot/driver master)** are done: app scaffold, Docker Compose,
+tooling, the full Phase 1 Prisma schema, credential login/logout with
+database-backed sessions, role gating and org-scoping, and City/Depot/
+Vehicle/Driver CRUD (service layer + protected API routes + simple list
+pages) with depot-scoped RBAC and audit logging. Incidents, claims, and
+the rest of the business workflow start at M5+. See
+[`docs/SCOPE.md`](docs/SCOPE.md) for the milestone plan,
+[`docs/schema/`](docs/schema/), [`docs/AUTH.md`](docs/AUTH.md), and
+[`docs/MASTERS.md`](docs/MASTERS.md) for what's implemented so far, and
 [`docs/RULES.md`](docs/RULES.md) for the Business Rules / Process Rules
 the system is being built against.
 
@@ -76,3 +79,4 @@ docker compose up --build
 - [`docs/RULES.md`](docs/RULES.md) — Business Rules and Process Rules, each with a reason, kept current as modules are scoped.
 - [`docs/schema/`](docs/schema/) — per-milestone database schema documentation (ER diagrams, design rationale).
 - [`docs/AUTH.md`](docs/AUTH.md) — auth/session/RBAC/org-scoping design and how it was verified.
+- [`docs/MASTERS.md`](docs/MASTERS.md) — vehicle/depot/driver master data: who can do what, and why.
