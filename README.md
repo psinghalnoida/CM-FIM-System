@@ -9,7 +9,7 @@ and payment.
 
 ## Status
 
-**M1–M8** are done: app scaffold, Docker Compose, tooling, the full Phase 1
+**M1–M9** are done: app scaffold, Docker Compose, tooling, the full Phase 1
 Prisma schema, credential login/logout with database-backed sessions, role
 gating and org-scoping, City/Depot/Vehicle/Driver CRUD with depot-scoped
 RBAC and audit logging, a document repository (presigned-URL upload,
@@ -17,19 +17,22 @@ versioning, linked to vehicles/drivers), incident creation/editing with an
 OPEN/CLOSED state machine, `INC-YYYY-######` IDs and photo/video/document
 evidence attachment, the claim workflow (incident→claim conversion, BR-05
 policy auto-selection, the `ClaimStatus` state machine
-(`CLM-YYYY-######`), surveys, and workshop/repair job tracking), and a TAT
-engine: configurable per-org/case-type stage templates, sequential
-auto-instantiated stage tracking with on-hold periods (reason +
-responsible party), and elapsed-time calculation excluding held time.
-Dashboards and the rest of the business workflow start at M9+. See
+(`CLM-YYYY-######`), surveys, and workshop/repair job tracking), a TAT
+engine (configurable per-org/case-type stage templates, sequential
+auto-instantiated stage tracking with on-hold periods, and elapsed-time
+calculation excluding held time), and an operational dashboard (org-wide
+or depot-filtered incident/claim status counts, TAT breach counts, and
+aging, backed by live queries — no mocks). WhatsApp/OCR/telematics
+integrations and the rest of the roadmap start at M10+. See
 [`docs/SCOPE.md`](docs/SCOPE.md) for the milestone plan,
 [`docs/schema/`](docs/schema/), [`docs/AUTH.md`](docs/AUTH.md),
 [`docs/MASTERS.md`](docs/MASTERS.md),
 [`docs/DOCUMENTS.md`](docs/DOCUMENTS.md),
 [`docs/INCIDENTS.md`](docs/INCIDENTS.md),
-[`docs/CLAIMS.md`](docs/CLAIMS.md), and [`docs/TAT.md`](docs/TAT.md) for
-what's implemented so far, and [`docs/RULES.md`](docs/RULES.md) for the
-Business Rules / Process Rules the system is being built against.
+[`docs/CLAIMS.md`](docs/CLAIMS.md), [`docs/TAT.md`](docs/TAT.md), and
+[`docs/DASHBOARDS.md`](docs/DASHBOARDS.md) for what's implemented so far,
+and [`docs/RULES.md`](docs/RULES.md) for the Business Rules / Process
+Rules the system is being built against.
 
 Try it locally: seed the dev database (`npm run db:seed`) and sign in at
 `/login` with `admin@jbm.example` / `ChangeMe123!` (dev-only credentials,
@@ -104,3 +107,4 @@ alongside `DATABASE_URL`/`SESSION_SECRET` when running `npm run test`
 - [`docs/INCIDENTS.md`](docs/INCIDENTS.md) — incident workflow, evidence attachment, and two real bugs found and fixed while building it.
 - [`docs/CLAIMS.md`](docs/CLAIMS.md) — claim workflow, BR-05 policy auto-selection, surveys, workshop/repair jobs, and how it was verified.
 - [`docs/TAT.md`](docs/TAT.md) — the TAT engine: configurable stage templates, sequential auto-instantiation, on-hold periods, and elapsed-time calculation excluding holds.
+- [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md) — the operational dashboard: status counts, TAT breach counts, aging, and how it was verified.

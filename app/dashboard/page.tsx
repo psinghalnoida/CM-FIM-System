@@ -3,10 +3,9 @@ import { verifySession } from "@/lib/dal";
 import { logout } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 
-// Placeholder protected page proving the M3 auth flow end-to-end. The real
-// corporate/depot/claim dashboards are M9 — this page's only job is to
-// exist behind verifySession() so M3 has something real to smoke-test
-// against, not to be a dashboard.
+// Placeholder protected page proving the M3 auth flow end-to-end — kept
+// as the post-login landing page/nav hub. The real operational dashboard
+// (M9) lives at /dashboards, linked below.
 export default async function DashboardPage() {
   const session = await verifySession();
 
@@ -59,6 +58,12 @@ export default async function DashboardPage() {
           className="text-primary underline underline-offset-4"
         >
           TAT stage templates
+        </Link>
+        <Link
+          href="/dashboards"
+          className="text-primary underline underline-offset-4"
+        >
+          Operational dashboard
         </Link>
       </nav>
       <form action={logout}>
