@@ -206,7 +206,13 @@ export async function getIncident(session: AuthSession, id: string) {
   const scoped = scopedDb(session.user.organizationId);
   const incident = await scoped.incident.findUnique({
     where: { id },
-    include: { vehicle: true, driver: true, depot: true, evidence: true },
+    include: {
+      vehicle: true,
+      driver: true,
+      depot: true,
+      evidence: true,
+      claims: true,
+    },
   });
   if (!incident) return null;
   assertDepotInScope(session, incident.depotId);

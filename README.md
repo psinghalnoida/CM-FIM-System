@@ -9,20 +9,24 @@ and payment.
 
 ## Status
 
-**M1–M6** are done: app scaffold, Docker Compose, tooling, the full Phase 1
+**M1–M7** are done: app scaffold, Docker Compose, tooling, the full Phase 1
 Prisma schema, credential login/logout with database-backed sessions, role
 gating and org-scoping, City/Depot/Vehicle/Driver CRUD with depot-scoped
 RBAC and audit logging, a document repository (presigned-URL upload,
-versioning, linked to vehicles/drivers), and incident creation/editing
-with an OPEN/CLOSED state machine, `INC-YYYY-######` IDs, and
-photo/video/document evidence attachment. Claims and the rest of the
-business workflow start at M7+. See [`docs/SCOPE.md`](docs/SCOPE.md) for
-the milestone plan, [`docs/schema/`](docs/schema/),
-[`docs/AUTH.md`](docs/AUTH.md), [`docs/MASTERS.md`](docs/MASTERS.md),
-[`docs/DOCUMENTS.md`](docs/DOCUMENTS.md), and
-[`docs/INCIDENTS.md`](docs/INCIDENTS.md) for what's implemented so far,
-and [`docs/RULES.md`](docs/RULES.md) for the Business Rules / Process
-Rules the system is being built against.
+versioning, linked to vehicles/drivers), incident creation/editing with an
+OPEN/CLOSED state machine, `INC-YYYY-######` IDs and photo/video/document
+evidence attachment, and the claim workflow: incident→claim conversion,
+BR-05 policy auto-selection, the `ClaimStatus` state machine
+(`CLM-YYYY-######`), plus surveys (`SUR-YYYY-######`) and workshop/repair
+job tracking. The TAT engine and the rest of the business workflow start
+at M8+. See [`docs/SCOPE.md`](docs/SCOPE.md) for the milestone plan,
+[`docs/schema/`](docs/schema/), [`docs/AUTH.md`](docs/AUTH.md),
+[`docs/MASTERS.md`](docs/MASTERS.md),
+[`docs/DOCUMENTS.md`](docs/DOCUMENTS.md),
+[`docs/INCIDENTS.md`](docs/INCIDENTS.md), and
+[`docs/CLAIMS.md`](docs/CLAIMS.md) for what's implemented so far, and
+[`docs/RULES.md`](docs/RULES.md) for the Business Rules / Process Rules
+the system is being built against.
 
 Try it locally: seed the dev database (`npm run db:seed`) and sign in at
 `/login` with `admin@jbm.example` / `ChangeMe123!` (dev-only credentials,
@@ -95,3 +99,4 @@ alongside `DATABASE_URL`/`SESSION_SECRET` when running `npm run test`
 - [`docs/MASTERS.md`](docs/MASTERS.md) — vehicle/depot/driver master data: who can do what, and why.
 - [`docs/DOCUMENTS.md`](docs/DOCUMENTS.md) — document repository: the presigned-upload flow and how it was verified.
 - [`docs/INCIDENTS.md`](docs/INCIDENTS.md) — incident workflow, evidence attachment, and two real bugs found and fixed while building it.
+- [`docs/CLAIMS.md`](docs/CLAIMS.md) — claim workflow, BR-05 policy auto-selection, surveys, workshop/repair jobs, and how it was verified.

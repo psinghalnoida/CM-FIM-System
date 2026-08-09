@@ -48,6 +48,12 @@ export default async function DashboardPage() {
         >
           Incidents
         </Link>
+        <Link
+          href="/claims"
+          className="text-primary underline underline-offset-4"
+        >
+          Claims
+        </Link>
       </nav>
       <form action={logout}>
         <Button type="submit" variant="outline" className="mt-4">

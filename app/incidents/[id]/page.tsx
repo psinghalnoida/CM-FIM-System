@@ -93,6 +93,51 @@ export default async function IncidentDetailPage({
       </table>
 
       <UploadEvidenceForm incidentId={incident.id} />
+
+      <div className="mt-8 mb-2 flex items-center justify-between">
+        <h2 className="text-lg font-semibold tracking-tight">Claims</h2>
+        <Link
+          href={`/claims/new?incidentId=${incident.id}`}
+          className="text-primary text-sm underline underline-offset-4"
+        >
+          File a claim
+        </Link>
+      </div>
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-border border-b">
+            <th className="py-2">Number</th>
+            <th className="py-2">Type</th>
+            <th className="py-2">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {incident.claims.map((claim) => (
+            <tr key={claim.id} className="border-border border-b">
+              <td className="py-2">
+                <Link
+                  href={`/claims/${claim.id}`}
+                  className="text-primary underline underline-offset-4"
+                >
+                  {claim.claimNumber}
+                </Link>
+              </td>
+              <td className="py-2">{claim.claimType}</td>
+              <td className="py-2">{claim.status}</td>
+            </tr>
+          ))}
+          {incident.claims.length === 0 && (
+            <tr>
+              <td
+                colSpan={3}
+                className="text-muted-foreground py-4 text-center"
+              >
+                No claims filed yet.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
