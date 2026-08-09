@@ -142,7 +142,7 @@ tracked as the first task inside the milestone, not skipped.
 | M5 ✅ | **Document repository** | Presigned-URL upload to S3-compatible storage, versioning (BR-04), validity-date fields, linkage to Vehicle/Driver (Incident/Claim/Survey/RepairJob linking deferred to their own milestones). See [`docs/DOCUMENTS.md`](DOCUMENTS.md). | M4 |
 | M6 ✅ | **Incident workflow** | Incident creation/editing, OPEN/CLOSED state machine, evidence attachment (presigned upload, reusing M5's pattern), `INC-YYYY-######` generation. Telematics snapshot deferred to M12. See [`docs/INCIDENTS.md`](INCIDENTS.md). | M4, M5 |
 | M7 ✅ | **Claim workflow** | Incident→claim conversion (no re-entry), multi-claim-per-incident, claim types, BR-05 policy auto-selection by incident date, claim state machine (`CLM-YYYY-######`), plus surveys (`SUR-YYYY-######`) and workshop/repair job tracking, shipped alongside. See [`docs/CLAIMS.md`](CLAIMS.md). | M6, M2b |
-| M8 | **TAT engine** | Configurable stage templates per org/case-type, `case_stage_instance` tracking, on-hold periods with reason/responsible party, elapsed-time calc excluding holds | M7 |
+| M8 ✅ | **TAT engine** | Configurable stage templates per org/case-type, auto-instantiated sequential `case_stage_instance` tracking, on-hold periods with reason/responsible party, elapsed-time calc excluding holds. Escalation firing deferred to M13. See [`docs/TAT.md`](TAT.md). | M7 |
 | M9 | **Dashboards** | Corporate/depot/claim dashboards backed by real data (no mocks) — status counts, TAT breach counts, aging | M6–M8 |
 
 ### Then implement

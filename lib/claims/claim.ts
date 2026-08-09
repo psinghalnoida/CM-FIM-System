@@ -6,7 +6,20 @@ import { requireRole, type AuthSession } from "@/lib/dal";
 import { recordAudit } from "@/lib/audit";
 import { assertDepotInScope, depotScopeFor } from "@/lib/masters/depot-scope";
 import { DomainError } from "@/lib/domain-error";
-import { ClaimType, ClaimStatus } from "@/lib/generated/prisma/enums";
+import { instantiateStagesForCase } from "@/lib/tat/case-stage";
+import { ClaimType, ClaimStatus, CaseType } from "@/lib/generated/prisma/enums";
+
+// M8: every ClaimType maps to a CaseType one-to-one (the enums mirror
+// each other, "_CLAIM" suffix) — this is what instantiateStagesForCase
+// keys TAT stage-template lookup on. See docs/TAT.md.
+const CASE_TYPE_BY_CLAIM_TYPE: Record<ClaimType, CaseType> = {
+  INSURANCE: CaseType.INSURANCE_CLAIM,
+  WARRANTY: CaseType.WARRANTY_CLAIM,
+  MAINTENANCE: CaseType.MAINTENANCE_CLAIM,
+  OPERATIONAL: CaseType.OPERATIONAL_CLAIM,
+  THIRD_PARTY_RECOVERY: CaseType.THIRD_PARTY_RECOVERY_CLAIM,
+  MIXED: CaseType.MIXED_CLAIM,
+};
 
 // M7: a Claim is filed against an existing Incident (BR-01 — the incident
 // is never re-created). An incident can spawn any number of claims (e.g.
@@ -128,7 +141,7 @@ export async function createClaim(session: AuthSession, input: unknown) {
       tx,
       session.user.organizationId,
     );
-    return tx.claim.create({
+    const created = await tx.claim.create({
       data: {
         organizationId: session.user.organizationId,
         claimNumber,
@@ -138,6 +151,15 @@ export async function createClaim(session: AuthSession, input: unknown) {
         assignedToId: data.assignedToId,
       },
     });
+    // M8: auto-instantiate this org's configured TAT stages for this
+    // claim's case type (a no-op if none are configured yet).
+    await instantiateStagesForCase(
+      tx,
+      session.user.organizationId,
+      CASE_TYPE_BY_CLAIM_TYPE[data.claimType],
+      { claimId: created.id },
+    );
+    return created;
   });
 
   await recordAudit({

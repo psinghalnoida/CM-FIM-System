@@ -5,6 +5,8 @@ import { getIncident } from "@/lib/incidents/incident";
 import { UploadEvidenceForm } from "@/components/incidents/upload-evidence-form";
 import { DownloadEvidenceLink } from "@/components/incidents/download-evidence-link";
 import { IncidentStatusActions } from "@/components/incidents/incident-status-actions";
+import { listStageInstancesForCase } from "@/lib/tat/case-stage";
+import { StageInstancePanel } from "@/components/tat/stage-instance-panel";
 
 export default async function IncidentDetailPage({
   params,
@@ -16,6 +18,9 @@ export default async function IncidentDetailPage({
 
   const incident = await getIncident(session, id);
   if (!incident) notFound();
+  const stages = await listStageInstancesForCase(session, {
+    incidentId: incident.id,
+  });
 
   return (
     <div className="mx-auto max-w-3xl p-8">
@@ -138,6 +143,11 @@ export default async function IncidentDetailPage({
           )}
         </tbody>
       </table>
+
+      <h2 className="mt-8 mb-2 text-lg font-semibold tracking-tight">
+        TAT stages
+      </h2>
+      <StageInstancePanel instances={stages} />
     </div>
   );
 }

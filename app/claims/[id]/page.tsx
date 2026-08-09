@@ -7,6 +7,8 @@ import { REPAIR_JOB_TRANSITIONS } from "@/lib/claims/repair-job";
 import { StatusTransitionSelect } from "@/components/claims/status-transition-select";
 import { CreateSurveyForm } from "@/components/claims/create-survey-form";
 import { CreateRepairJobForm } from "@/components/claims/create-repair-job-form";
+import { listStageInstancesForCase } from "@/lib/tat/case-stage";
+import { StageInstancePanel } from "@/components/tat/stage-instance-panel";
 
 export default async function ClaimDetailPage({
   params,
@@ -18,6 +20,9 @@ export default async function ClaimDetailPage({
 
   const claim = await getClaim(session, id);
   if (!claim) notFound();
+  const stages = await listStageInstancesForCase(session, {
+    claimId: claim.id,
+  });
 
   return (
     <div className="mx-auto max-w-3xl p-8">
@@ -141,6 +146,11 @@ export default async function ClaimDetailPage({
         </tbody>
       </table>
       <CreateRepairJobForm claimId={claim.id} />
+
+      <h2 className="mt-8 mb-2 text-lg font-semibold tracking-tight">
+        TAT stages
+      </h2>
+      <StageInstancePanel instances={stages} />
     </div>
   );
 }

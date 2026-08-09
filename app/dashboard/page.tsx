@@ -54,6 +54,12 @@ export default async function DashboardPage() {
         >
           Claims
         </Link>
+        <Link
+          href="/tat/stage-templates"
+          className="text-primary underline underline-offset-4"
+        >
+          TAT stage templates
+        </Link>
       </nav>
       <form action={logout}>
         <Button type="submit" variant="outline" className="mt-4">

@@ -6,10 +6,12 @@ import { requireRole, type AuthSession } from "@/lib/dal";
 import { recordAudit } from "@/lib/audit";
 import { assertDepotInScope, depotScopeFor } from "@/lib/masters/depot-scope";
 import { DomainError } from "@/lib/domain-error";
+import { instantiateStagesForCase } from "@/lib/tat/case-stage";
 import {
   IncidentType,
   IncidentSeverity,
   ReportedVia,
+  CaseType,
 } from "@/lib/generated/prisma/enums";
 
 // BR-01: the incident is the parent record — logged once, never
@@ -86,7 +88,7 @@ export async function createIncident(
       tx,
       session.user.organizationId,
     );
-    return tx.incident.create({
+    const created = await tx.incident.create({
       data: {
         organizationId: session.user.organizationId,
         incidentNumber,
@@ -104,6 +106,16 @@ export async function createIncident(
         reportedById: session.user.id,
       },
     });
+    // M8: auto-instantiate this org's configured TAT stages for
+    // case type INCIDENT (a no-op if none are configured yet) — see
+    // docs/TAT.md.
+    await instantiateStagesForCase(
+      tx,
+      session.user.organizationId,
+      CaseType.INCIDENT,
+      { incidentId: created.id },
+    );
+    return created;
   });
 
   await recordAudit({
