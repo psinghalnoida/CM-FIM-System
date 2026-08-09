@@ -2,6 +2,7 @@ import "server-only";
 import { scopedDb } from "@/lib/scoped-db";
 import { requireRole, type AuthSession } from "@/lib/dal";
 import { assertDepotInScope } from "@/lib/masters/depot-scope";
+import { DomainError } from "@/lib/domain-error";
 import type { LinkedEntityType } from "@/lib/generated/prisma/enums";
 
 // A document's access is governed by whatever it's linked to. M5 only
@@ -32,7 +33,7 @@ async function resolveDepotId(
     });
     return driver.depotId;
   }
-  throw new Error(
+  throw new DomainError(
     `Document linkage to ${linkedEntityType} isn't supported yet — its owning module hasn't landed.`,
   );
 }

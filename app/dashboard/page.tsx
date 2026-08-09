@@ -42,6 +42,12 @@ export default async function DashboardPage() {
         >
           Drivers
         </Link>
+        <Link
+          href="/incidents"
+          className="text-primary underline underline-offset-4"
+        >
+          Incidents
+        </Link>
       </nav>
       <form action={logout}>
         <Button type="submit" variant="outline" className="mt-4">

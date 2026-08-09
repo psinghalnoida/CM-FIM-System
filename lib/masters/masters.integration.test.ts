@@ -58,12 +58,16 @@ afterEach(async () => {
 });
 
 let uniqueCounter = 0;
+// Short on purpose — registrationNumber/licenseNumber/depot code all have
+// real max-length limits (see lib/masters/*.ts), unlike a timestamp-based
+// suffix. The random suffix (not just the counter) matters too: multiple
+// integration test files can run concurrently against the same shared
+// Postgres, each with its own uniqueCounter starting at 0 — without it,
+// two files' identical "ORG_ADMIN1@example.com" would collide on
+// User.email's *global* unique constraint.
 function unique(label: string) {
   uniqueCounter += 1;
-  // Short on purpose — registrationNumber/licenseNumber/depot code all
-  // have real max-length limits (see lib/masters/*.ts), unlike a
-  // timestamp-based suffix.
-  return `${label}${uniqueCounter}`;
+  return `${label}${uniqueCounter}${Math.random().toString(36).slice(2, 6)}`;
 }
 
 async function seedOrgWithTwoDepots() {

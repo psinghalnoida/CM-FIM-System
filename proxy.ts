@@ -22,6 +22,7 @@ const PROTECTED_PREFIXES = [
   "/depots",
   "/vehicles",
   "/drivers",
+  "/incidents",
 ];
 const AUTH_ROUTES = ["/login"];
 
@@ -55,6 +56,7 @@ export const config = {
     "/depots/:path*",
     "/vehicles/:path*",
     "/drivers/:path*",
+    "/incidents/:path*",
     "/login",
   ],
 };

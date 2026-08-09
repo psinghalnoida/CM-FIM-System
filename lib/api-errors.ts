@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { unstable_rethrow } from "next/navigation";
 import { ZodError } from "zod";
 import { Prisma } from "@/lib/generated/prisma/client";
+import { DomainError } from "@/lib/domain-error";
 
 /**
  * Standard error -> HTTP response mapping for API route handlers (M4+).
@@ -21,6 +22,10 @@ import { Prisma } from "@/lib/generated/prisma/client";
  */
 export function toApiErrorResponse(err: unknown): NextResponse {
   unstable_rethrow(err);
+
+  if (err instanceof DomainError) {
+    return NextResponse.json({ error: err.message }, { status: err.status });
+  }
 
   if (err instanceof ZodError) {
     return NextResponse.json(

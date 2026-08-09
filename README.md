@@ -9,16 +9,18 @@ and payment.
 
 ## Status
 
-**M1–M5** are done: app scaffold, Docker Compose, tooling, the full Phase 1
+**M1–M6** are done: app scaffold, Docker Compose, tooling, the full Phase 1
 Prisma schema, credential login/logout with database-backed sessions, role
 gating and org-scoping, City/Depot/Vehicle/Driver CRUD with depot-scoped
-RBAC and audit logging, and a document repository (presigned-URL upload to
-S3-compatible storage, versioning, linked to vehicles/drivers). Incidents,
-claims, and the rest of the business workflow start at M6+. See
-[`docs/SCOPE.md`](docs/SCOPE.md) for the milestone plan,
-[`docs/schema/`](docs/schema/), [`docs/AUTH.md`](docs/AUTH.md),
-[`docs/MASTERS.md`](docs/MASTERS.md), and
-[`docs/DOCUMENTS.md`](docs/DOCUMENTS.md) for what's implemented so far,
+RBAC and audit logging, a document repository (presigned-URL upload,
+versioning, linked to vehicles/drivers), and incident creation/editing
+with an OPEN/CLOSED state machine, `INC-YYYY-######` IDs, and
+photo/video/document evidence attachment. Claims and the rest of the
+business workflow start at M7+. See [`docs/SCOPE.md`](docs/SCOPE.md) for
+the milestone plan, [`docs/schema/`](docs/schema/),
+[`docs/AUTH.md`](docs/AUTH.md), [`docs/MASTERS.md`](docs/MASTERS.md),
+[`docs/DOCUMENTS.md`](docs/DOCUMENTS.md), and
+[`docs/INCIDENTS.md`](docs/INCIDENTS.md) for what's implemented so far,
 and [`docs/RULES.md`](docs/RULES.md) for the Business Rules / Process
 Rules the system is being built against.
 
@@ -73,13 +75,16 @@ docker compose up --build
 | `npm run db:studio` | Prisma Studio (DB browser) |
 | `npm run db:seed` | Seed a dev-only JBM org + admin login |
 
-Document-repository tests (`lib/documents/*.test.ts`) start their own
+Document-repository and evidence tests (`lib/documents/*.test.ts`,
+`lib/incidents/evidence.integration.test.ts`) each start their own
 in-process S3-compatible test server ([s3rver](https://github.com/jamhall/s3rver))
-in `beforeAll` — no MinIO/Docker needed to run them, but they do need
+in `beforeAll`, on different ports (4569 / 4570) so they can run
+concurrently — no MinIO/Docker needed to run them, but they do need
 `S3_ENDPOINT=http://localhost:4569`, `S3_REGION=us-east-1`,
 `S3_ACCESS_KEY_ID=S3RVER`, `S3_SECRET_ACCESS_KEY=S3RVER`,
 `S3_BUCKET=cm-fim-documents-test`, `S3_FORCE_PATH_STYLE=true` set
-alongside `DATABASE_URL`/`SESSION_SECRET` when running `npm run test`.
+alongside `DATABASE_URL`/`SESSION_SECRET` when running `npm run test`
+(the evidence suite overrides these to its own port internally).
 
 ## Docs
 
@@ -89,3 +94,4 @@ alongside `DATABASE_URL`/`SESSION_SECRET` when running `npm run test`.
 - [`docs/AUTH.md`](docs/AUTH.md) — auth/session/RBAC/org-scoping design and how it was verified.
 - [`docs/MASTERS.md`](docs/MASTERS.md) — vehicle/depot/driver master data: who can do what, and why.
 - [`docs/DOCUMENTS.md`](docs/DOCUMENTS.md) — document repository: the presigned-upload flow and how it was verified.
+- [`docs/INCIDENTS.md`](docs/INCIDENTS.md) — incident workflow, evidence attachment, and two real bugs found and fixed while building it.

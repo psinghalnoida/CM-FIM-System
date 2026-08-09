@@ -100,9 +100,12 @@ afterEach(async () => {
 });
 
 let uniqueCounter = 0;
+// See lib/incidents/incident.integration.test.ts for why the random
+// suffix is needed, not just the counter — cross-file/cross-process
+// collisions on User.email's global unique constraint.
 function unique(label: string) {
   uniqueCounter += 1;
-  return `${label}${uniqueCounter}`;
+  return `${label}${uniqueCounter}${Math.random().toString(36).slice(2, 6)}`;
 }
 
 async function seedOrgWithTwoDepotsAndVehicles() {

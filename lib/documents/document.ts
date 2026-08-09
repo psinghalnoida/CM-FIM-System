@@ -13,6 +13,8 @@ import { db } from "@/lib/db";
 import { scopedDb } from "@/lib/scoped-db";
 import type { AuthSession } from "@/lib/dal";
 import { recordAudit } from "@/lib/audit";
+import { getMaxUploadSizeBytes } from "@/lib/upload-limits";
+import { DomainError } from "@/lib/domain-error";
 import {
   SUPPORTED_LINK_TYPES,
   assertCanManageDocumentsFor,
@@ -25,22 +27,6 @@ import { DocumentType } from "@/lib/generated/prisma/enums";
 // docs/DOCUMENTS.md for why, and what it does and doesn't guard against.
 
 const PRESIGNED_URL_TTL_SECONDS = 300; // 5 minutes
-const DEFAULT_MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
-
-/**
- * Read fresh on every call (not cached at module load) so
- * DOCUMENT_MAX_FILE_SIZE_BYTES can be overridden — mainly so tests can
- * exercise the rejection path without uploading a 100MB fixture. Also a
- * legitimate ops knob: tunable without a code change.
- */
-function getMaxFileSizeBytes(): number {
-  const override = process.env.DOCUMENT_MAX_FILE_SIZE_BYTES;
-  if (!override) return DEFAULT_MAX_FILE_SIZE_BYTES;
-  const parsed = Number(override);
-  return Number.isFinite(parsed) && parsed > 0
-    ? parsed
-    : DEFAULT_MAX_FILE_SIZE_BYTES;
-}
 
 function sanitizeFileName(fileName: string): string {
   return fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-150);
@@ -92,10 +78,12 @@ async function assertWithinSizeLimit(
   storageKey: string,
   contentLength: number,
 ): Promise<void> {
-  const maxFileSizeBytes = getMaxFileSizeBytes();
+  const maxFileSizeBytes = getMaxUploadSizeBytes(
+    "DOCUMENT_MAX_FILE_SIZE_BYTES",
+  );
   if (contentLength > maxFileSizeBytes) {
     await deleteUploadedObject(storageKey);
-    throw new Error(
+    throw new DomainError(
       `Uploaded file (${contentLength} bytes) exceeds the ${maxFileSizeBytes}-byte limit.`,
     );
   }
@@ -387,7 +375,7 @@ export async function getDownloadUrl(session: AuthSession, documentId: string) {
     );
   }
   if (!document.currentVersion) {
-    throw new Error("Document has no uploaded version yet.");
+    throw new DomainError("Document has no uploaded version yet.", 409);
   }
 
   const downloadUrl = await getSignedUrl(
