@@ -33,7 +33,7 @@ import { createStageTemplate } from "@/lib/tat/stage-template";
 import { createEscalationRule } from "@/lib/escalations/escalation-rule";
 import {
   createSettlement,
-  approveSettlement,
+  acceptSettlement,
 } from "@/lib/settlements/settlement";
 import { createPayment, reconcilePayment } from "@/lib/settlements/payment";
 import type { UserRole } from "@/lib/generated/prisma/enums";
@@ -380,7 +380,7 @@ async function main() {
       claimId: closedClaim.id,
       settlementAmount: 85000,
     });
-    await approveSettlement(financeSession, settlement.id);
+    await acceptSettlement(financeSession, settlement.id);
     const payment = await createPayment(financeSession, {
       settlementId: settlement.id,
       amount: 85000,

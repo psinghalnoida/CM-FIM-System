@@ -25,6 +25,10 @@ import {
   presignDocumentUpload,
   presignVersionUpload,
 } from "@/lib/documents/document";
+import { createClaim, transitionClaimStatus } from "@/lib/claims/claim";
+import { createSurvey } from "@/lib/claims/survey";
+import { createRepairJob } from "@/lib/claims/repair-job";
+import { createSettlement } from "@/lib/settlements/settlement";
 
 let s3rverInstance: InstanceType<typeof S3rver>;
 const s3TestDir = fs.mkdtempSync(path.join(os.tmpdir(), "s3rver-test-"));
@@ -52,6 +56,11 @@ afterAll(async () => {
 
 const cleanup = {
   vehicleIds: [] as string[],
+  incidentIds: [] as string[],
+  claimIds: [] as string[],
+  surveyIds: [] as string[],
+  repairJobIds: [] as string[],
+  settlementIds: [] as string[],
   userIds: [] as string[],
   depotIds: [] as string[],
   cityIds: [] as string[],
@@ -64,11 +73,23 @@ afterEach(async () => {
   });
   // documentVersion/documentLink/document cascade via document deletion in
   // most ORM setups, but this schema has no ON DELETE CASCADE — delete
-  // explicitly, scoped to this org via its vehicles.
+  // explicitly, across every linkable entity type this file exercises
+  // (M19 added CLAIM/SURVEY/REPAIR_JOB/SETTLEMENT to VEHICLE/DRIVER).
   const docLinks = await db.documentLink.findMany({
     where: {
-      linkedEntityType: "VEHICLE",
-      linkedEntityId: { in: cleanup.vehicleIds },
+      OR: [
+        { linkedEntityType: "VEHICLE", linkedEntityId: { in: cleanup.vehicleIds } },
+        { linkedEntityType: "CLAIM", linkedEntityId: { in: cleanup.claimIds } },
+        { linkedEntityType: "SURVEY", linkedEntityId: { in: cleanup.surveyIds } },
+        {
+          linkedEntityType: "REPAIR_JOB",
+          linkedEntityId: { in: cleanup.repairJobIds },
+        },
+        {
+          linkedEntityType: "SETTLEMENT",
+          linkedEntityId: { in: cleanup.settlementIds },
+        },
+      ],
     },
   });
   const documentIds = docLinks.map((l) => l.documentId);
@@ -87,12 +108,29 @@ afterEach(async () => {
   });
   await db.document.deleteMany({ where: { id: { in: documentIds } } });
 
+  await db.settlement.deleteMany({
+    where: { id: { in: cleanup.settlementIds } },
+  });
+  await db.survey.deleteMany({ where: { id: { in: cleanup.surveyIds } } });
+  await db.repairJob.deleteMany({
+    where: { id: { in: cleanup.repairJobIds } },
+  });
+  await db.idCounter.deleteMany({
+    where: { organizationId: { in: cleanup.orgIds } },
+  });
+  await db.claim.deleteMany({ where: { id: { in: cleanup.claimIds } } });
+  await db.incident.deleteMany({ where: { id: { in: cleanup.incidentIds } } });
   await db.vehicle.deleteMany({ where: { id: { in: cleanup.vehicleIds } } });
   await db.user.deleteMany({ where: { id: { in: cleanup.userIds } } });
   await db.depot.deleteMany({ where: { id: { in: cleanup.depotIds } } });
   await db.city.deleteMany({ where: { id: { in: cleanup.cityIds } } });
   await db.organization.deleteMany({ where: { id: { in: cleanup.orgIds } } });
   cleanup.vehicleIds = [];
+  cleanup.incidentIds = [];
+  cleanup.claimIds = [];
+  cleanup.surveyIds = [];
+  cleanup.repairJobIds = [];
+  cleanup.settlementIds = [];
   cleanup.userIds = [];
   cleanup.depotIds = [];
   cleanup.cityIds = [];
@@ -155,7 +193,13 @@ async function seedOrgWithTwoDepotsAndVehicles() {
 async function userSessionWithRole(
   org: { id: string },
   depotId: string | null,
-  role: "ORG_ADMIN" | "DEPOT_MANAGER" | "CLAIMS_MANAGER",
+  role:
+    | "ORG_ADMIN"
+    | "DEPOT_MANAGER"
+    | "CLAIMS_MANAGER"
+    | "SURVEYOR"
+    | "WORKSHOP_COORDINATOR"
+    | "FINANCE_OFFICER",
 ): Promise<AuthSession> {
   const user = await db.user.create({
     data: {
@@ -438,5 +482,220 @@ describe("Document reads", () => {
       linkedEntityId: vehicleA.id,
     });
     expect(docsForA.map((d) => d.title)).toEqual(["For vehicle A"]);
+  });
+});
+
+/** M19: a claim with a survey, a repair job, and a settlement — the entities document-linking was extended to. */
+async function seedOrgWithClaimSubRecords() {
+  const org = await db.organization.create({
+    data: { code: unique("M19"), name: "M19 Document Test Org" },
+  });
+  cleanup.orgIds.push(org.id);
+  const admin = await userSessionWithRole(org, null, "ORG_ADMIN");
+  const city = await db.city.create({
+    data: { organizationId: org.id, name: "City" },
+  });
+  cleanup.cityIds.push(city.id);
+  const depot = await db.depot.create({
+    data: { organizationId: org.id, cityId: city.id, code: unique("D"), name: "Depot" },
+  });
+  cleanup.depotIds.push(depot.id);
+  const vehicle = await db.vehicle.create({
+    data: {
+      organizationId: org.id,
+      depotId: depot.id,
+      registrationNumber: unique("V"),
+    },
+  });
+  cleanup.vehicleIds.push(vehicle.id);
+  const incident = await db.incident.create({
+    data: {
+      organizationId: org.id,
+      incidentNumber: unique("INC"),
+      vehicleId: vehicle.id,
+      depotId: depot.id,
+      incidentDateTime: new Date(),
+      incidentType: "ACCIDENT",
+      description: "M19 document-link test incident.",
+    },
+  });
+  cleanup.incidentIds.push(incident.id);
+  const claim = await createClaim(admin, {
+    incidentId: incident.id,
+    claimType: "INSURANCE",
+  });
+  cleanup.claimIds.push(claim.id);
+  const survey = await createSurvey(admin, {
+    claimId: claim.id,
+    surveyorName: "Test Surveyor",
+  });
+  cleanup.surveyIds.push(survey.id);
+  const repairJob = await createRepairJob(admin, {
+    claimId: claim.id,
+    workshopName: "Test Workshop",
+  });
+  cleanup.repairJobIds.push(repairJob.id);
+  await transitionClaimStatus(admin, claim.id, "UNDER_SURVEY");
+  await transitionClaimStatus(admin, claim.id, "UNDER_REPAIR");
+  await transitionClaimStatus(admin, claim.id, "PENDING_SETTLEMENT");
+  await transitionClaimStatus(admin, claim.id, "SETTLED");
+  const settlement = await createSettlement(admin, {
+    claimId: claim.id,
+    settlementAmount: 1000,
+  });
+  cleanup.settlementIds.push(settlement.id);
+
+  return { org, depot, admin, claim, survey, repairJob, settlement };
+}
+
+describe("Document linking to claim sub-records (M19)", () => {
+  it("SURVEYOR can upload a survey report; WORKSHOP_COORDINATOR cannot", async () => {
+    const { org, survey } = await seedOrgWithClaimSubRecords();
+    const surveyor = await userSessionWithRole(org, null, "SURVEYOR");
+    const workshopCoordinator = await userSessionWithRole(
+      org,
+      null,
+      "WORKSHOP_COORDINATOR",
+    );
+
+    const { uploadUrl, storageKey } = await presignDocumentUpload(surveyor, {
+      linkedEntityType: "SURVEY",
+      linkedEntityId: survey.id,
+      fileName: "report.pdf",
+    });
+    const putRes = await fetch(uploadUrl, { method: "PUT", body: "report" });
+    expect(putRes.ok).toBe(true);
+
+    const document = await completeNewDocumentUpload(surveyor, {
+      storageKey,
+      fileName: "report.pdf",
+      documentType: "OTHER",
+      title: "Survey report",
+      linkedEntityType: "SURVEY",
+      linkedEntityId: survey.id,
+    });
+    expect(document.links[0].linkedEntityType).toBe("SURVEY");
+
+    await expect(
+      presignDocumentUpload(workshopCoordinator, {
+        linkedEntityType: "SURVEY",
+        linkedEntityId: survey.id,
+        fileName: "x.pdf",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("WORKSHOP_COORDINATOR can upload a repair invoice; SURVEYOR cannot", async () => {
+    const { org, repairJob } = await seedOrgWithClaimSubRecords();
+    const workshopCoordinator = await userSessionWithRole(
+      org,
+      null,
+      "WORKSHOP_COORDINATOR",
+    );
+    const surveyor = await userSessionWithRole(org, null, "SURVEYOR");
+
+    const { uploadUrl, storageKey } = await presignDocumentUpload(
+      workshopCoordinator,
+      {
+        linkedEntityType: "REPAIR_JOB",
+        linkedEntityId: repairJob.id,
+        fileName: "invoice.pdf",
+      },
+    );
+    const putRes = await fetch(uploadUrl, { method: "PUT", body: "invoice" });
+    expect(putRes.ok).toBe(true);
+
+    const document = await completeNewDocumentUpload(workshopCoordinator, {
+      storageKey,
+      fileName: "invoice.pdf",
+      documentType: "OTHER",
+      title: "Workshop invoice",
+      linkedEntityType: "REPAIR_JOB",
+      linkedEntityId: repairJob.id,
+    });
+    expect(document.links[0].linkedEntityType).toBe("REPAIR_JOB");
+
+    await expect(
+      presignDocumentUpload(surveyor, {
+        linkedEntityType: "REPAIR_JOB",
+        linkedEntityId: repairJob.id,
+        fileName: "x.pdf",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("FINANCE_OFFICER can upload a settlement letter; CLAIMS_MANAGER cannot", async () => {
+    const { org, settlement } = await seedOrgWithClaimSubRecords();
+    const financeOfficer = await userSessionWithRole(
+      org,
+      null,
+      "FINANCE_OFFICER",
+    );
+    const claimsManager = await userSessionWithRole(org, null, "CLAIMS_MANAGER");
+
+    const { uploadUrl, storageKey } = await presignDocumentUpload(
+      financeOfficer,
+      {
+        linkedEntityType: "SETTLEMENT",
+        linkedEntityId: settlement.id,
+        fileName: "letter.pdf",
+      },
+    );
+    const putRes = await fetch(uploadUrl, { method: "PUT", body: "letter" });
+    expect(putRes.ok).toBe(true);
+
+    const document = await completeNewDocumentUpload(financeOfficer, {
+      storageKey,
+      fileName: "letter.pdf",
+      documentType: "OTHER",
+      title: "Settlement letter",
+      linkedEntityType: "SETTLEMENT",
+      linkedEntityId: settlement.id,
+    });
+    expect(document.links[0].linkedEntityType).toBe("SETTLEMENT");
+
+    await expect(
+      presignDocumentUpload(claimsManager, {
+        linkedEntityType: "SETTLEMENT",
+        linkedEntityId: settlement.id,
+        fileName: "x.pdf",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("a DEPOT_MANAGER outside the claim's incident depot cannot read a linked survey document", async () => {
+    const { org, survey } = await seedOrgWithClaimSubRecords();
+    const admin = await userSessionWithRole(org, null, "ORG_ADMIN");
+    const otherDepot = await db.depot.create({
+      data: {
+        organizationId: org.id,
+        cityId: (await db.city.findFirstOrThrow({ where: { organizationId: org.id } })).id,
+        code: unique("OD"),
+        name: "Other Depot",
+      },
+    });
+    cleanup.depotIds.push(otherDepot.id);
+    const outsideManager = await userSessionWithRole(
+      org,
+      otherDepot.id,
+      "DEPOT_MANAGER",
+    );
+
+    const { uploadUrl, storageKey } = await presignDocumentUpload(admin, {
+      linkedEntityType: "SURVEY",
+      linkedEntityId: survey.id,
+      fileName: "report.pdf",
+    });
+    await fetch(uploadUrl, { method: "PUT", body: "report" });
+    const document = await completeNewDocumentUpload(admin, {
+      storageKey,
+      fileName: "report.pdf",
+      documentType: "OTHER",
+      title: "Survey report",
+      linkedEntityType: "SURVEY",
+      linkedEntityId: survey.id,
+    });
+
+    await expect(getDocument(outsideManager, document.id)).rejects.toThrow();
   });
 });

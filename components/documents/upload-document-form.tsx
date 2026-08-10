@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { SupportedLinkType } from "@/lib/documents/link-scope";
 
 const DOCUMENT_TYPES = [
   "REGISTRATION_CERTIFICATE",
@@ -24,7 +25,7 @@ export function UploadDocumentForm({
   linkedEntityType,
   linkedEntityId,
 }: {
-  linkedEntityType: "VEHICLE" | "DRIVER";
+  linkedEntityType: SupportedLinkType;
   linkedEntityId: string;
 }) {
   const router = useRouter();

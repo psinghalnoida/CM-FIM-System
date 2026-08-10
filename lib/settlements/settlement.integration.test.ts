@@ -10,11 +10,12 @@ import { db } from "@/lib/db";
 import type { AuthSession } from "@/lib/dal";
 import { createClaim, transitionClaimStatus } from "@/lib/claims/claim";
 import {
-  approveSettlement,
+  acceptSettlement,
   createSettlement,
+  disputeSettlement,
   getSettlement,
   listSettlementsForClaim,
-  rejectSettlement,
+  requestSettlementReview,
 } from "@/lib/settlements/settlement";
 import { createPayment, reconcilePayment } from "@/lib/settlements/payment";
 
@@ -184,8 +185,8 @@ describe("createSettlement", () => {
   });
 });
 
-describe("approveSettlement / rejectSettlement", () => {
-  it("transitions PENDING -> APPROVED, records audit, and rejects re-deciding it (409)", async () => {
+describe("acceptSettlement / disputeSettlement / requestSettlementReview", () => {
+  it("transitions PENDING -> ACCEPTED, records audit, and rejects re-deciding it (409)", async () => {
     const { admin, claim } = await seedOrgWithSettledClaim();
     const settlement = await createSettlement(admin, {
       claimId: claim.id,
@@ -193,9 +194,9 @@ describe("approveSettlement / rejectSettlement", () => {
     });
     track(settlement.id);
 
-    const approved = await approveSettlement(admin, settlement.id);
-    expect(approved.status).toBe("APPROVED");
-    expect(approved.approvedById).toBe(admin.user.id);
+    const accepted = await acceptSettlement(admin, settlement.id);
+    expect(accepted.status).toBe("ACCEPTED");
+    expect(accepted.respondedById).toBe(admin.user.id);
 
     const audit = await db.auditLog.findFirst({
       where: {
@@ -206,12 +207,12 @@ describe("approveSettlement / rejectSettlement", () => {
     });
     expect(audit).not.toBeNull();
 
-    await expect(rejectSettlement(admin, settlement.id)).rejects.toThrow(
-      /already APPROVED/,
+    await expect(disputeSettlement(admin, settlement.id)).rejects.toThrow(
+      /already been accepted/,
     );
   });
 
-  it("transitions PENDING -> REJECTED", async () => {
+  it("transitions PENDING -> DISPUTED", async () => {
     const { admin, claim } = await seedOrgWithSettledClaim();
     const settlement = await createSettlement(admin, {
       claimId: claim.id,
@@ -219,8 +220,36 @@ describe("approveSettlement / rejectSettlement", () => {
     });
     track(settlement.id);
 
-    const rejected = await rejectSettlement(admin, settlement.id);
-    expect(rejected.status).toBe("REJECTED");
+    const disputed = await disputeSettlement(admin, settlement.id);
+    expect(disputed.status).toBe("DISPUTED");
+  });
+
+  it("transitions PENDING -> REVIEW_REQUESTED", async () => {
+    const { admin, claim } = await seedOrgWithSettledClaim();
+    const settlement = await createSettlement(admin, {
+      claimId: claim.id,
+      settlementAmount: 5000,
+    });
+    track(settlement.id);
+
+    const reviewRequested = await requestSettlementReview(
+      admin,
+      settlement.id,
+    );
+    expect(reviewRequested.status).toBe("REVIEW_REQUESTED");
+  });
+
+  it("a DISPUTED settlement isn't terminal — JBM can still accept it once the insurer responds", async () => {
+    const { admin, claim } = await seedOrgWithSettledClaim();
+    const settlement = await createSettlement(admin, {
+      claimId: claim.id,
+      settlementAmount: 5000,
+    });
+    track(settlement.id);
+
+    await disputeSettlement(admin, settlement.id);
+    const accepted = await acceptSettlement(admin, settlement.id);
+    expect(accepted.status).toBe("ACCEPTED");
   });
 });
 
@@ -256,14 +285,14 @@ describe("BR-09: closure gate", () => {
     ).rejects.toThrow(/still PENDING/);
   });
 
-  it("blocks CLOSED while an APPROVED settlement's payments don't sum to its amount", async () => {
+  it("blocks CLOSED while an ACCEPTED settlement's payments don't sum to its amount", async () => {
     const { admin, claim } = await seedOrgWithSettledClaim();
     const settlement = await createSettlement(admin, {
       claimId: claim.id,
       settlementAmount: 5000,
     });
     track(settlement.id);
-    await approveSettlement(admin, settlement.id);
+    await acceptSettlement(admin, settlement.id);
     await createPayment(admin, {
       settlementId: settlement.id,
       amount: 2000,
@@ -282,7 +311,7 @@ describe("BR-09: closure gate", () => {
       settlementAmount: 5000,
     });
     track(settlement.id);
-    await approveSettlement(admin, settlement.id);
+    await acceptSettlement(admin, settlement.id);
     await createPayment(admin, {
       settlementId: settlement.id,
       amount: 5000,
@@ -294,14 +323,14 @@ describe("BR-09: closure gate", () => {
     ).rejects.toThrow(/unreconciled/);
   });
 
-  it("allows CLOSED once the settlement is APPROVED, fully paid, and reconciled", async () => {
+  it("allows CLOSED once the settlement is ACCEPTED, fully paid, and reconciled", async () => {
     const { admin, claim } = await seedOrgWithSettledClaim();
     const settlement = await createSettlement(admin, {
       claimId: claim.id,
       settlementAmount: 5000,
     });
     track(settlement.id);
-    await approveSettlement(admin, settlement.id);
+    await acceptSettlement(admin, settlement.id);
     const payment = await createPayment(admin, {
       settlementId: settlement.id,
       amount: 5000,
@@ -314,17 +343,18 @@ describe("BR-09: closure gate", () => {
     expect(closed.closedAt).not.toBeNull();
   });
 
-  it("a REJECTED settlement never blocks closure, even unpaid", async () => {
+  it("a DISPUTED settlement blocks closure, even unpaid — unlike the pre-M19 REJECTED exclusion", async () => {
     const { admin, claim } = await seedOrgWithSettledClaim();
     const settlement = await createSettlement(admin, {
       claimId: claim.id,
       settlementAmount: 5000,
     });
     track(settlement.id);
-    await rejectSettlement(admin, settlement.id);
+    await disputeSettlement(admin, settlement.id);
 
-    const closed = await transitionClaimStatus(admin, claim.id, "CLOSED");
-    expect(closed.status).toBe("CLOSED");
+    await expect(
+      transitionClaimStatus(admin, claim.id, "CLOSED"),
+    ).rejects.toThrow(/still DISPUTED/);
   });
 
   it("splitting a settlement across two payments that together sum correctly still closes", async () => {
@@ -334,7 +364,7 @@ describe("BR-09: closure gate", () => {
       settlementAmount: 5000,
     });
     track(settlement.id);
-    await approveSettlement(admin, settlement.id);
+    await acceptSettlement(admin, settlement.id);
     const p1 = await createPayment(admin, {
       settlementId: settlement.id,
       amount: 3000,

@@ -12,9 +12,12 @@ import { db } from "@/lib/db";
 import type { AuthSession } from "@/lib/dal";
 import { createClaim } from "@/lib/claims/claim";
 import {
+  addRepairPart,
   addWorkshopActivity,
   createRepairJob,
+  getRepairJob,
   listRepairJobsForClaim,
+  listRepairPartsForRepairJob,
   transitionRepairJobStatus,
   updateRepairJob,
 } from "@/lib/claims/repair-job";
@@ -42,6 +45,9 @@ afterEach(async () => {
     where: { organizationId: { in: cleanup.orgIds } },
   });
   await db.workshopActivity.deleteMany({
+    where: { repairJobId: { in: cleanup.repairJobIds } },
+  });
+  await db.repairPart.deleteMany({
     where: { repairJobId: { in: cleanup.repairJobIds } },
   });
   await db.repairJob.deleteMany({
@@ -308,6 +314,46 @@ describe("addWorkshopActivity", () => {
       addWorkshopActivity(managerB, repairJob.id, {
         activityType: "QC_CHECK",
       }),
+    ).rejects.toThrow();
+  });
+});
+
+describe("addRepairPart / listRepairPartsForRepairJob (M19)", () => {
+  it("adds a named part and lists it in creation order, also returned by getRepairJob", async () => {
+    const { claim, admin } = await seedOrgWithClaim();
+    const repairJob = await createRepairJob(admin, {
+      claimId: claim.id,
+      workshopName: "ACME Motors",
+    });
+    track(repairJob.id);
+
+    await addRepairPart(admin, repairJob.id, { partName: "Front bumper" });
+    await addRepairPart(admin, repairJob.id, { partName: "Headlamp assembly" });
+
+    const parts = await listRepairPartsForRepairJob(admin, repairJob.id);
+    expect(parts.map((p) => p.partName)).toEqual([
+      "Front bumper",
+      "Headlamp assembly",
+    ]);
+
+    const fetched = await getRepairJob(admin, repairJob.id);
+    expect(fetched?.parts.map((p) => p.partName)).toEqual([
+      "Front bumper",
+      "Headlamp assembly",
+    ]);
+  });
+
+  it("rejects a DEPOT_MANAGER from a different depot adding a part", async () => {
+    const { depotB, org, claim, admin } = await seedOrgWithClaim();
+    const repairJob = await createRepairJob(admin, {
+      claimId: claim.id,
+      workshopName: "ACME Motors",
+    });
+    track(repairJob.id);
+    const managerB = await userSessionWithRole(org, depotB.id, "DEPOT_MANAGER");
+
+    await expect(
+      addRepairPart(managerB, repairJob.id, { partName: "Fender" }),
     ).rejects.toThrow();
   });
 });

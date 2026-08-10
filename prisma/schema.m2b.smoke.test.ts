@@ -195,9 +195,9 @@ describe("M2b schema", () => {
           organizationId: org.id,
           claimId: claim.id,
           settlementAmount: "80000.00",
-          status: "APPROVED",
-          approvedById: user.id,
-          approvedAt: new Date(),
+          status: "ACCEPTED",
+          respondedById: user.id,
+          respondedAt: new Date(),
         },
       });
       await tx.payment.create({

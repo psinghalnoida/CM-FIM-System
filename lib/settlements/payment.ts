@@ -7,9 +7,10 @@ import { recordAudit } from "@/lib/audit";
 import { DomainError } from "@/lib/domain-error";
 import { SettlementStatus, PaymentMethod } from "@/lib/generated/prisma/enums";
 
-// M14: payments recorded against an APPROVED settlement, then reconciled
-// — both are inputs to BR-09's closure gate (lib/settlements/settlement.ts).
-// See docs/PAYMENTS.md.
+// M14: payments recorded against an ACCEPTED settlement (M19: renamed
+// from APPROVED — JBM accepting the insurer's offer, not approving a
+// claim), then reconciled — both are inputs to BR-09's closure gate
+// (lib/settlements/settlement.ts). See docs/PAYMENTS.md.
 
 const WRITE_ROLES = ["ORG_ADMIN", "FINANCE_OFFICER"] as const;
 
@@ -42,9 +43,9 @@ export async function createPayment(session: AuthSession, input: unknown) {
     data.settlementId,
   );
 
-  if (settlement.status !== SettlementStatus.APPROVED) {
+  if (settlement.status !== SettlementStatus.ACCEPTED) {
     throw new DomainError(
-      `Cannot record a payment against a settlement that is ${settlement.status}, not APPROVED.`,
+      `Cannot record a payment against a settlement that is ${settlement.status}, not ACCEPTED.`,
       409,
     );
   }
@@ -127,4 +128,17 @@ export async function listPaymentsForSettlement(
     where: { settlementId },
     orderBy: { paymentDate: "asc" },
   });
+}
+
+/** M19: backs the standalone Payment Detail page. Same cross-org fix as reconcilePayment — resolved through Settlement, not queried by id directly. */
+export async function getPayment(session: AuthSession, id: string) {
+  const payment = await db.payment.findUnique({
+    where: { id },
+    include: { settlement: { include: { claim: true } } },
+  });
+  if (!payment) return null;
+  if (payment.settlement.organizationId !== session.user.organizationId) {
+    return null;
+  }
+  return payment;
 }
