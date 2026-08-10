@@ -161,6 +161,53 @@ claim-lifecycle slice rather than as standalone milestones, since they are
 sub-workflows of a claim with their own TAT stages — they get their own
 schema/API-contract/tests pass but ship alongside the claim workflow PR(s).
 
+### UI/UX alignment (Claims Mitra design)
+
+A separately-produced UI design (`CM_FIM_System.dc.html`, branded "Claims
+Mitra") surfaced after M15 shipped, describing a materially larger
+information architecture than M1–M15 built against this document — 16
+screens including a personalized "My Work" view, a Fleet dashboard, a
+tabbed Vehicle profile, an org-wide Document Repository, a TAT dashboard,
+MIS reports, an Administration area (Users/Master Data/Integrations), and
+standalone detail pages for Survey/Repair/Settlement/Payment (today these
+are inline tables on Claim Detail). It also introduced its own visual
+design system (Poppins/Inter type, a purple accent palette, card/tag
+styling) that the app doesn't use anywhere — every existing page is
+plain shadcn/ui defaults. The gap was never something to notice earlier:
+the design lived outside this repo and was never referenced by any prior
+milestone until it was shared directly. See `docs/DEPLOYMENT.md`'s
+sibling docs for how each milestone below gets verified — same bar as
+M1–M15, no exceptions for being UI-focused.
+
+| # | Milestone | Delivers | Depends on |
+|---|---|---|---|
+| M16 | **UI foundation** | The nav shell every other screen sits inside: sidebar (wordmark + "CM FIM" module tag, nav list), header (search input slot, notifications/help placeholders, signed-in user), and the design's color/type/spacing tokens adopted app-wide. No new data, no new routes — a shell + restyle. | M1–M9 (existing pages get re-skinned in place) |
+| M17 | **Global search** | Real search backend (incident/claim/vehicle number to start — driver/document expansion is a follow-up if narrow search isn't enough), wired into M16's header search box. | M16 |
+| M18 | **Administration: Users** | User list/create/deactivate + role assignment. Closes a real gap — there is currently no way to manage a user except direct database access. | M16 |
+| M19 | **Sub-record detail pages** | Survey/Repair/Settlement/Payment become standalone pages (each with its own tabs), linked from Claim Detail instead of inline tables. **Bundles the settlement domain correction**: JBM is the insured, not an approving authority — the insurer settles the claim, the surveyor recommends the loss. `Settlement`'s `PENDING → APPROVED/REJECTED` flow (M14) is renamed/reworked to record JBM's *response* to the insurer's offer (`ACCEPTED` / `DISPUTED` / `REVIEW_REQUESTED` / `PENDING`), not an approval decision — this touches M14's shipped schema, API, BR-09's gate, tests, and `docs/PAYMENTS.md`. No monetary approval ceiling of any kind is implemented (confirmed not a JBM requirement); if JBM ever wants an internal financial-authority rule, it's optional config added only when JBM supplies the actual policy. | M14 (reworked), M16 |
+| M20 | **Claim Detail: Communication + Audit tabs** | Audit tab reuses the existing `AuditLog` directly. Communication log needs a scoping decision first — manually-entered notes, or auto-generated from real claim events — before any model is added. | M16, M19 |
+| M21 | **Incident List/Detail + Corporate Dashboard richness** | Incident List: Export, richer filters/columns. Incident Detail: the design's 7-tab layout (Overview/Evidence/Telematics/Documents/Assessment/Timeline/TAT) replacing today's single flat page. Corporate Dashboard: pipeline funnel, TAT breach panel, claims-by-status, depot performance — extends M9, no new models. | M16 |
+| M22 | **Document Repository + Viewer** | Org-wide document list (today: per-vehicle only) with KPI tiles and OCR confidence column; Document Viewer restyled to the design (confidence bar, Verify/Flag/Request re-upload). Extends M5/M11, no new models. | M16 |
+| M23 | **TAT Dashboard** | Live board of every in-progress case's TAT status, across incidents and claims. New aggregation query over M8's `CaseStageInstance`, no new models. | M16 |
+| M24 | **MIS Reports** | Claim ageing, TAT compliance %, incident-type frequency, repair turnaround by depot. New aggregation queries, no new models. | M16 |
+| M25 | **Fleet Dashboard** | Fleet-wide KPIs + filterable vehicle list (status, open incidents/claims). New aggregation query, no new models. | M16 |
+| M26 | **My Work** | Personalized "needs your action" view, scoped to the caller. New query, no new models. | M16, M18 |
+| M27 | **Administration: Master Data** | Turns free-text `surveyorName`/`workshopName`/insurer names into real, manageable master entities (Insurer/Broker/Surveyor/Workshop). Real schema migration — **needs a backfill plan** for every existing free-text value, not just new tables. | M16, M18 |
+| M28 | **Vehicle Detail (tabbed profile)** | The design's 8-tab vehicle page. Information/Status/Incident-Claim-Repair history are queries against existing data. Warranty needs a new model — business terms (provider, coverage, validity) undefined, needs its own scoping question when this milestone starts. Telematics tab stays a placeholder pending M12. | M16 |
+| M29 | **Administration: Integration Settings** | Status view of WhatsApp/Telematics/OCR/Email adapters. Needs a real "is this configured and reachable" check, not just echoing env vars — pair with closing `docs/DEPLOYMENT.md`'s flagged `/api/health` gap, same underlying check. | M16, M10/M12 (for real status, not just OCR/Email) |
+
+**Deliberately not scoped above: the "Mitra" AI chat assistant.** It needs
+its own conversation before any milestone number is assigned — which
+model, what it's allowed to see/do (tool-calling against live claims
+data has real access-control implications), and cost. Not something to
+back into via a UI milestone.
+
+Sequencing note: M16 is the one hard prerequisite for everything else in
+this list (every other screen sits inside its shell). Beyond that, M17
+and M18 are next since search and user management are assumed by nearly
+everything downstream; the rest can reorder based on what's actually
+wanted next.
+
 ---
 
 ## 5. Adapter interface contracts (shape, not implementation)
