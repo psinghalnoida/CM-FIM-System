@@ -623,6 +623,46 @@ paths:
               application/json:
                 { schema: { $ref: "#/components/schemas/Error" } },
             }
+  /claims/{id}/communications:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Claims]
+      summary: >-
+        List a claim's Communication tab entries (M20) — backed by
+        ActivityTimelineEvent, ordered oldest-first.
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: array,
+                        items: { $ref: "#/components/schemas/ActivityTimelineEvent" },
+                      },
+                  },
+              },
+          }
+    post:
+      tags: [Claims]
+      summary: >-
+        Log a manually-entered communication note (ORG_ADMIN,
+        CLAIMS_MANAGER) — correspondence with the insurer/surveyor/
+        workshop, distinct from the Audit tab's system-generated entries.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [description]
+              properties:
+                description: { type: string, maxLength: 2000 }
+      responses:
+        "201": { description: Created }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   # --- Surveys --------------------------------------------------------
   /claims/{id}/surveys:
@@ -1724,6 +1764,22 @@ components:
         assignedToId: { type: string, format: uuid, nullable: true }
         openedAt: { type: string, format: date-time }
         closedAt: { type: string, format: date-time, nullable: true }
+
+    ActivityTimelineEvent:
+      type: object
+      description: >-
+        A dormant M2b model, first given a service layer/UI in M20 for
+        the Claim Detail Communication tab (eventType "NOTE"). Also
+        supports INCIDENT-linked and other eventType values (e.g. a
+        future WHATSAPP_MESSAGE from M10) — not restricted to NOTE.
+      properties:
+        id: { type: string, format: uuid }
+        incidentId: { type: string, format: uuid, nullable: true }
+        claimId: { type: string, format: uuid, nullable: true }
+        eventType: { type: string, example: NOTE }
+        actorId: { type: string, format: uuid, nullable: true }
+        description: { type: string }
+        occurredAt: { type: string, format: date-time }
 
     Survey:
       type: object
