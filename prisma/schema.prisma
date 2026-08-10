@@ -457,30 +457,35 @@ enum ReportedVia {
 }
 
 model Incident {
-  id               String           @id @default(uuid())
-  organizationId   String
-  organization     Organization     @relation(fields: [organizationId], references: [id])
-  incidentNumber   String // human-readable, e.g. INC-2026-000001 (see IdCounter)
-  vehicleId        String
-  vehicle          Vehicle          @relation(fields: [vehicleId], references: [id])
-  driverId         String?
-  driver           Driver?          @relation(fields: [driverId], references: [id])
-  depotId          String
-  depot            Depot            @relation(fields: [depotId], references: [id])
-  incidentDateTime DateTime // when the incident actually happened — drives policy auto-selection (BR-05)
-  reportedAt       DateTime         @default(now()) // when it was logged in the system
-  reportedById     String?
-  reportedBy       User?            @relation("IncidentReportedBy", fields: [reportedById], references: [id])
-  reportedVia      ReportedVia      @default(WEB)
-  incidentType     IncidentType
-  severity         IncidentSeverity @default(MEDIUM)
-  locationAddress  String?
-  locationLat      Float?
-  locationLng      Float?
-  description      String
-  status           IncidentStatus   @default(OPEN)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  id                 String           @id @default(uuid())
+  organizationId     String
+  organization       Organization     @relation(fields: [organizationId], references: [id])
+  incidentNumber     String // human-readable, e.g. INC-2026-000001 (see IdCounter)
+  vehicleId          String
+  vehicle            Vehicle          @relation(fields: [vehicleId], references: [id])
+  driverId           String?
+  driver             Driver?          @relation(fields: [driverId], references: [id])
+  depotId            String
+  depot              Depot            @relation(fields: [depotId], references: [id])
+  incidentDateTime   DateTime // when the incident actually happened — drives policy auto-selection (BR-05)
+  reportedAt         DateTime         @default(now()) // when it was logged in the system
+  reportedById       String?
+  reportedBy         User?            @relation("IncidentReportedBy", fields: [reportedById], references: [id])
+  reportedVia        ReportedVia      @default(WEB)
+  incidentType       IncidentType
+  severity           IncidentSeverity @default(MEDIUM)
+  locationAddress    String?
+  locationLat        Float?
+  locationLng        Float?
+  description        String
+  // M21: the design's Incident Overview tab shows these as structured
+  // fields (not just free text buried in `description`) — both nullable,
+  // filled in as the picture becomes clearer, not required at intake.
+  injuries           String?
+  thirdPartyInvolved Boolean?
+  status             IncidentStatus   @default(OPEN)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   evidence           Evidence[]
   telematicsSnapshot TelematicsSnapshot?

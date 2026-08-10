@@ -11,6 +11,40 @@ claim types, BR-05 policy auto-selection, the `ClaimStatus` state machine
 alongside it — surveys (`SUR-YYYY-######`) and workshop/repair jobs
 (`RepairJobStatus`, `WorkshopActivity` logging).
 
+**Update (M20):** Claim Detail became a tabbed page (Overview/
+Communication/Audit — `components/shared/detail-tabs.tsx`, the same
+`?tab=` pattern M19's sub-record pages use). Overview is everything this
+page already had; Communication and Audit are new — see below.
+
+## M20: Communication + Audit tabs
+
+**Communication log is manually-entered notes, not auto-generated from
+events** — confirmed with the user before building, choosing between the
+two. `lib/claims/communication.ts` writes to `ActivityTimelineEvent`
+(`eventType: "NOTE"`), a model that's existed since M2b with no service
+layer or UI until now — its own doc comment already anticipated `"NOTE"`
+as an example `eventType` value, so this is reusing dormant schema
+(the same shape as M19's `Survey.findings`/`WorkshopActivity` reuse), not
+adding a new model. Write RBAC is `ORG_ADMIN` + `CLAIMS_MANAGER`, the
+same as `Claim` itself.
+
+**The read side isn't filtered to `eventType: "NOTE"`.** Today `NOTE` is
+the only writer, but `ActivityTimelineEvent`'s own comment anticipates
+other event types (e.g. a future `WHATSAPP_MESSAGE` from M10) landing in
+the same per-claim timeline — `listClaimCommunications` lists everything
+for the claim, not just notes, so it doesn't need a query change once
+other writers exist.
+
+**No `recordAudit()` call for logging a communication.** Every other
+write in this system calls `recordAudit()`; a communication note doesn't,
+deliberately — the note *is* the record. A `STATUS_CHANGE`-shaped audit
+entry for "typed a note" would just be noise sitting next to the note
+itself on the Audit tab.
+
+**The Audit tab reuses M19's `listAuditLogForEntity()` directly** against
+`entityType: "Claim"` — no new code, exactly as `docs/SCOPE.md`'s M20 row
+predicted.
+
 ## Design decisions and why
 
 **An incident can spawn any number of claims — nothing enforces "one
@@ -130,6 +164,17 @@ from the start avoided repeating that bug rather than finding it again.
   `/claims/new?incidentId=...`, and the incident detail page's new Claims
   section all rendered the real data (200s, correct IDs visible in the
   HTML) → unauthenticated `/api/claims` rejected with **401**.
+- **`lib/claims/communication.integration.test.ts`** (M20, 3 tests):
+  `ORG_ADMIN`/`CLAIMS_MANAGER` can log a note, `SURVEYOR` cannot; a
+  `DEPOT_MANAGER` from a different depot is rejected; entries list in
+  `occurredAt` order with the actor included, depot-scoped for
+  `DEPOT_MANAGER` via the claim's incident.
+- **Real HTTP (M20)**: logged a communication note as `CLAIMS_MANAGER`
+  (**201**) → `SURVEYOR` attempting the same got **403** → the
+  Communication tab (`/claims/[id]?tab=communication`) rendered the note
+  text → the Audit tab rendered (**200**) → an unauthenticated request to
+  the claim page redirected (**307**), same as every other protected
+  page.
 
 ## Deferred to a follow-up
 

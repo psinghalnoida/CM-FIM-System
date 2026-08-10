@@ -9,6 +9,62 @@ human-readable `INC-YYYY-######` ID generation, and photo/video/document
 evidence attachment (reusing M5's presigned-upload pattern). Telematics
 snapshot capture is **not** this milestone — that's M12.
 
+**Update (M21):** Incident List gained richer filters (severity, type,
+depot, date range) and a CSV export; Incident Detail became the design's
+7-tab layout (Overview/Evidence/Telematics/Documents/Assessment/
+Timeline/TAT). See "M21: Incident List + Detail" below.
+
+## M21: Incident List + Detail
+
+**Two new nullable fields, `injuries` and `thirdPartyInvolved`.** The
+design's Overview tab shows these as structured fields in the Driver
+section, not buried in free-text `description`. Both optional — filled
+in as the picture becomes clearer, not required at intake. No UI existed
+to edit *any* incident field before this (only create existed); a small
+inline form on the Overview tab is the minimal path to setting these two,
+not a general-purpose incident-edit page (out of scope here).
+
+**A `depotId` list filter never becomes a cross-depot bypass for
+`DEPOT_MANAGER`.** `listIncidents` already forces `depotId: depotScope`
+for a `DEPOT_MANAGER`; the M21 addition is that if such a session also
+passes an explicit `filter.depotId` for a *different* depot, the function
+returns `[]` rather than silently AND-ing the two into a query that
+happens to match nothing — the same "don't let a filter produce a
+confusing empty result via a query collision" call made elsewhere in this
+codebase (e.g. the M18 `DEPOT_MANAGER`-with-no-depot check).
+
+**Export is CSV**, not XLSX/PDF — the design's "Export" button doesn't
+specify a format; CSV is the simplest one that opens directly in any
+spreadsheet tool, and the sensible default for an ops export with no
+format requirement given.
+
+**Telematics tab is a placeholder, not built against real data.**
+`TelematicsSnapshot` (BR-06) has existed in the schema since M2a but
+nothing has ever written to it — the capture job is M12's job, gated on
+JBM FMS API access, exactly as `docs/SCOPE.md` already flags. Rendering
+an empty/fake tile grid against a model with zero rows would be worse
+than an honest "not available yet" message.
+
+**Assessment tab reuses existing data — no new "classification" field.**
+The design shows a read-only classification radio group whose four
+options (Warranty/Maintenance/Operational/Insurance) are literally the
+existing `ClaimType` enum — that choice is already made at claim-creation
+time via the existing "File a claim"/"Convert to claim" flow, so the tab
+just surfaces the incident's description plus that same call-to-action,
+rather than adding a field that would duplicate `ClaimType`.
+
+**Timeline tab reuses `AuditLog`** via M19's `listAuditLogForEntity()`
+against `entityType: "Incident"` — the same pattern as every other
+Timeline/Audit tab in the app, not a new mechanism.
+
+**Documents tab is document-linking extended to `INCIDENT`** — the
+follow-up `lib/documents/link-scope.ts`'s own code comment had predicted
+since M5/M19 ("INCIDENT ... will need a case added here once their
+owning module exists"). Write RBAC mirrors `lib/incidents/incident.ts`'s
+own `WRITE_ROLES` (`ORG_ADMIN`, `DEPOT_MANAGER`) — which happens to equal
+the pre-existing `VEHICLE`/`DRIVER` default, but is listed explicitly in
+`WRITE_ROLES_BY_ENTITY_TYPE` rather than left to that coincidence.
+
 ## Design decisions and why
 
 **Incident status stays OPEN/CLOSED — no new states added.** The schema
@@ -127,6 +183,24 @@ something a client did wrong).
   (**409**, not 500 — the bug described above, caught here) → reopen
   (200) → a DEPOT_MANAGER from a different depot attempting to create an
   incident against another depot's vehicle → **403**.
+- **`lib/incidents/incident.integration.test.ts`** (M21, +2 tests):
+  `injuries`/`thirdPartyInvolved` both start null and are independently
+  settable via `updateIncident`; `listIncidents` filters by severity,
+  incidentType, depotId, and date range correctly, and a `DEPOT_MANAGER`
+  explicitly filtering by another depot gets an empty list (not a
+  cross-depot leak, checked by asserting the actual returned rows).
+- **`lib/documents/document.integration.test.ts`** (M21, +1 test):
+  `DEPOT_MANAGER` can upload an incident document, `CLAIMS_MANAGER`
+  cannot; `listDocumentsForEntity` returns it.
+- **Real HTTP (M21), against the built app**: filtered `/incidents` by
+  severity/type — **200**; CSV export returned real rows with the
+  correct header row; set `injuries`/`thirdPartyInvolved` via `PATCH`
+  and confirmed the Overview tab rendered them; all 7 tabs render
+  (**200**) including the Telematics placeholder's "deferred to M12"
+  text; a `DEPOT_MANAGER` presigning an upload for another depot's
+  incident got **403**, the same `DEPOT_MANAGER` presigning for their
+  own depot's incident succeeded; unauthenticated requests to the new
+  tabbed page redirect (**307**).
 
 ## Deferred to a follow-up
 

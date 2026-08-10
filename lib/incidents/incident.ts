@@ -30,6 +30,10 @@ export const CreateIncidentSchema = z.object({
   locationLng: z.number().min(-180).max(180).optional(),
   description: z.string().trim().min(1).max(4000),
   reportedVia: z.enum(ReportedVia).optional(),
+  // M21: the Overview tab's structured fields — both optional, filled in
+  // as the picture becomes clearer, not required at intake time.
+  injuries: z.string().trim().max(2000).optional(),
+  thirdPartyInvolved: z.boolean().optional(),
 });
 export type CreateIncidentInput = z.infer<typeof CreateIncidentSchema>;
 
@@ -233,19 +237,38 @@ export async function getIncident(session: AuthSession, id: string) {
 
 export interface ListIncidentsFilter {
   status?: "OPEN" | "CLOSED";
+  // M21: richer filters for the Incident List page.
+  severity?: IncidentSeverity;
+  incidentType?: IncidentType;
+  depotId?: string;
+  dateFrom?: Date;
+  dateTo?: Date;
 }
 
-/** DEPOT_MANAGER only sees incidents at their own depot; other roles see the whole org. */
+/** DEPOT_MANAGER only sees incidents at their own depot; other roles see the whole org — a depotId filter from another role is further AND-ed in, not a bypass. */
 export async function listIncidents(
   session: AuthSession,
   filter: ListIncidentsFilter = {},
 ) {
   const scoped = scopedDb(session.user.organizationId);
   const depotScope = depotScopeFor(session);
+  if (depotScope && filter.depotId && filter.depotId !== depotScope) {
+    // A DEPOT_MANAGER filtering by a depot that isn't theirs would
+    // silently return zero rows via the AND below — reject explicitly
+    // instead, the same "don't let a filter quietly become a bypass or
+    // a confusing empty result" call made elsewhere in this codebase.
+    return [];
+  }
   return scoped.incident.findMany({
     where: {
-      depotId: depotScope ?? undefined,
+      depotId: depotScope ?? filter.depotId,
       status: filter.status,
+      severity: filter.severity,
+      incidentType: filter.incidentType,
+      incidentDateTime: {
+        gte: filter.dateFrom,
+        lte: filter.dateTo,
+      },
     },
     include: { vehicle: true, driver: true },
     orderBy: { incidentDateTime: "desc" },

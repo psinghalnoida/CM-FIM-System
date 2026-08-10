@@ -9,6 +9,35 @@ Covers: incident/claim status counts, TAT breach counts, and aging
 (days-open buckets), backed entirely by live queries against real data —
 no mocks, no cached/materialized rollups.
 
+**Update (M21):** the design's "Corporate Dashboard richness" ask —
+a pipeline funnel and a depot-performance breakdown — added to the same
+`getOperationalDashboard()` computation, not a second dashboard. See "M21:
+Pipeline funnel + depot performance" below.
+
+## M21: Pipeline funnel + depot performance
+
+**The pipeline funnel is an interpretive relabeling of counts this
+dashboard already computed, not a new concept.** The design names six
+stages (Assessment/Claim/Survey/Repair/Settlement/Payment); nothing in
+the schema stores a case's "pipeline stage" as a first-class value, so
+`pipelineFunnel` maps each name onto the closest existing status count:
+`assessment` = still-`OPEN` incidents (not yet converted to a claim),
+`claim`/`survey`/`repair`/`settlement` = the matching `ClaimStatus`
+count, `payment` = `SETTLED` claims (money resolved, awaiting formal
+`CLOSED`). This is a judgment call, not a literal spec, flagged here
+rather than presented as an exact mapping — revisit if the funnel needs
+to mean something more precise once real usage shows what JBM actually
+wants read off it.
+
+**Depot performance respects the same `depotId` filter as everything
+else on this dashboard** — M9's own rule ("one shared computation,
+narrowed by the same filter," not a special case per section) — rather
+than always showing every depot regardless of the filter. Unfiltered
+(the common case) it's a real per-depot comparison; filtered to one
+depot, or for a `DEPOT_MANAGER` whose scope is already pinned, it
+correctly collapses to a one-row table instead of showing other depots'
+rows as misleading zeros.
+
 ## Design decisions and why
 
 **One shared aggregation, not separate "corporate" and "depot"
@@ -89,6 +118,16 @@ a real performance problem shows up with production-scale data.
   when filtered to its depot via `?depotId=...` → `/dashboards` rendered
   the real data, including the breach row → unauthenticated
   `/api/dashboards/operational` rejected with **401**.
+- **`lib/dashboards/operational-dashboard.integration.test.ts`** (M21,
+  +2 tests): the pipeline funnel correctly counts a still-`OPEN`
+  incident as `assessment`, a fresh claim as `claim`, and a claim walked
+  to `UNDER_SURVEY` as `survey`, with `repair`/`settlement`/`payment`
+  correctly at zero; depot performance breaks down open incidents/claims
+  per depot when unfiltered, and collapses to one row when filtered to a
+  single depot.
+- **Real HTTP (M21), against the built app**: `/dashboards` rendered
+  both new sections — the pipeline funnel tiles and the depot
+  performance table — with real counts.
 
 ## Deferred to a follow-up
 

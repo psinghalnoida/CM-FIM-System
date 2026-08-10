@@ -319,6 +319,55 @@ describe("depot scope", () => {
   });
 });
 
+describe("M21: pipeline funnel", () => {
+  it("maps status counts onto the six named pipeline stages", async () => {
+    const { vehicleA, admin } = await seedOrgWithTwoDepots();
+
+    // Assessment: an OPEN incident not yet converted.
+    await createIncidentAgedDays(admin, vehicleA.id, 0);
+
+    // Claim: a fresh OPEN claim.
+    const incidentForClaim = await createIncidentAgedDays(admin, vehicleA.id, 0);
+    await createClaimAgedDays(admin, incidentForClaim.id, 0);
+
+    // Survey: a claim walked to UNDER_SURVEY.
+    const incidentForSurvey = await createIncidentAgedDays(admin, vehicleA.id, 0);
+    const surveyClaim = await createClaimAgedDays(admin, incidentForSurvey.id, 0);
+    await transitionClaimStatus(admin, surveyClaim.id, "UNDER_SURVEY");
+
+    const dashboard = await getOperationalDashboard(admin);
+    expect(dashboard.pipelineFunnel.assessment).toBe(3); // all 3 incidents still OPEN
+    expect(dashboard.pipelineFunnel.claim).toBe(1);
+    expect(dashboard.pipelineFunnel.survey).toBe(1);
+    expect(dashboard.pipelineFunnel.repair).toBe(0);
+    expect(dashboard.pipelineFunnel.settlement).toBe(0);
+    expect(dashboard.pipelineFunnel.payment).toBe(0);
+  });
+});
+
+describe("M21: depot performance", () => {
+  it("breaks down open incidents/claims per depot, and collapses to one row when filtered", async () => {
+    const { vehicleA, vehicleB, depotA, depotB, admin } =
+      await seedOrgWithTwoDepots();
+    await createIncidentAgedDays(admin, vehicleA.id, 0);
+    const incidentB1 = await createIncidentAgedDays(admin, vehicleB.id, 0);
+    await createIncidentAgedDays(admin, vehicleB.id, 0);
+    await createClaimAgedDays(admin, incidentB1.id, 0);
+
+    const orgWide = await getOperationalDashboard(admin);
+    const rowA = orgWide.depotPerformance.find((r) => r.depotId === depotA.id);
+    const rowB = orgWide.depotPerformance.find((r) => r.depotId === depotB.id);
+    expect(rowA?.openIncidents).toBe(1);
+    expect(rowA?.openClaims).toBe(0);
+    expect(rowB?.openIncidents).toBe(2);
+    expect(rowB?.openClaims).toBe(1);
+
+    const filtered = await getOperationalDashboard(admin, { depotId: depotA.id });
+    expect(filtered.depotPerformance).toHaveLength(1);
+    expect(filtered.depotPerformance[0].depotId).toBe(depotA.id);
+  });
+});
+
 describe("org scoping", () => {
   it("a second organization's data never appears in this org's dashboard", async () => {
     const { vehicleA, admin } = await seedOrgWithTwoDepots();

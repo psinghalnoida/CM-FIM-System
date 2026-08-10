@@ -9,7 +9,7 @@ and payment.
 
 ## Status
 
-**M1–M9, M11, M13–M19** are done: app scaffold, Docker Compose, tooling,
+**M1–M9, M11, M13–M21** are done: app scaffold, Docker Compose, tooling,
 the full Phase 1 Prisma schema, credential login/logout with
 database-backed sessions, role gating and org-scoping,
 City/Depot/Vehicle/Driver CRUD with depot-scoped RBAC and audit logging, a
@@ -29,10 +29,10 @@ human-verification that's the only path fields ever reach master data,
 per BR-07), and notifications/escalations (a repeatable BullMQ reminder
 scheduler, a configurable escalation hierarchy wired to TAT breaches, and
 a real `EmailProvider` stub, per PR-03), and payment & closure
-(settlement create/approve/reject, payment recording and reconciliation,
-and BR-09's closure-blocking rule — no claim reaches `CLOSED` until every
-non-rejected settlement on it is approved, fully paid, and reconciled),
-and testing/deployment hardening (a realistic multi-depot JBM demo seed
+(settlement create + JBM response recording, payment recording and
+reconciliation, and BR-09's closure-blocking rule — no claim reaches
+`CLOSED` until every settlement on it is accepted, fully paid, and
+reconciled), and testing/deployment hardening (a realistic multi-depot JBM demo seed
 dataset, a full green test suite — 149 unit/integration tests plus a
 real-HTTP e2e smoke script, a hand-maintained OpenAPI spec for the whole
 API surface, and deployment/runbook docs), a UI foundation (a shared
@@ -41,11 +41,19 @@ Claims Mitra design's color/type/spacing tokens adopted app-wide), and
 global search (incident/claim/vehicle number, wired into the header),
 Administration: Users (create/list/deactivate + role assignment —
 the first real way to manage a user other than direct database access),
-and sub-record detail pages (Survey/Repair/Settlement/Payment as
+sub-record detail pages (Survey/Repair/Settlement/Payment as
 standalone, tabbed pages, plus the settlement domain correction — JBM
 records a *response* to the insurer's settlement offer, not an approval
-decision; no monetary approval ceiling exists anywhere in this system).
-M20-M30, the rest of the UI-alignment milestones scoped from that
+decision; no monetary approval ceiling exists anywhere in this system),
+Claim Detail's Communication + Audit tabs (manually-entered
+communication notes backed by the dormant `ActivityTimelineEvent` model,
+and an Audit tab reusing `AuditLog` directly), and Incident List/Detail +
+Corporate Dashboard richness (CSV export and richer filters on the
+Incident List; Incident Detail as the design's 7-tab layout, with
+document-linking extended to incidents and two new `injuries`/
+`thirdPartyInvolved` fields; a pipeline funnel and per-depot performance
+breakdown added to the operational dashboard).
+M22-M30, the rest of the UI-alignment milestones scoped from that
 design, remain — see `docs/SCOPE.md`'s "UI/UX alignment" section. M10 (WhatsApp)
 and M12 (Telematics) are deferred pending JBM credentials; the roadmap
 otherwise continues with whatever's scoped next. See
