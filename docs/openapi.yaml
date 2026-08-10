@@ -18,6 +18,7 @@ security:
 tags:
   - name: Me
   - name: Search
+  - name: Administration
   - name: Masters
     description: Cities, Depots, Vehicles, Drivers
   - name: Incidents
@@ -71,6 +72,84 @@ paths:
                 items: { $ref: "#/components/schemas/SearchResult" }
         "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+
+  # --- Administration (M18) ------------------------------------------------
+  /admin/users:
+    get:
+      tags: [Administration]
+      summary: List users in the caller's org (ORG_ADMIN)
+      responses:
+        "200":
+          description: OK — never includes passwordHash
+          content:
+            application/json:
+              schema:
+                { type: array, items: { $ref: "#/components/schemas/User" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Administration]
+      summary: >
+        Create a user (ORG_ADMIN). No invite-email flow yet — the admin
+        sets an initial password directly. SUPER_ADMIN/WHATSAPP_BOT
+        cannot be assigned through this endpoint.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, role, password]
+              properties:
+                name: { type: string, maxLength: 120 }
+                email: { type: string, format: email }
+                role: { $ref: "#/components/schemas/AssignableUserRole" }
+                depotId:
+                  {
+                    type: string,
+                    format: uuid,
+                    description: "Required when role is DEPOT_MANAGER",
+                  }
+                phone: { type: string, maxLength: 20 }
+                password: { type: string, minLength: 8, maxLength: 200 }
+      responses:
+        "201": { description: Created — never includes passwordHash }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/users/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Administration]
+      summary: Get a user (ORG_ADMIN)
+      responses:
+        "200": { description: OK }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Administration]
+      summary: >
+        Update a user — name/role/depotId/phone/status (ORG_ADMIN).
+        Reassigning to DEPOT_MANAGER without a depotId, or setting your
+        own account's status to INACTIVE, is rejected.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 120 }
+                role: { $ref: "#/components/schemas/AssignableUserRole" }
+                depotId: { type: string, format: uuid, nullable: true }
+                phone: { type: string, maxLength: 20 }
+                status: { type: string, enum: [ACTIVE, INACTIVE, SUSPENDED] }
+      responses:
+        "200": { description: OK }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: DEPOT_MANAGER without a depotId, or self-deactivation
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/Error" } },
+            }
 
   # --- Masters --------------------------------------------------------
   /cities:
@@ -1436,6 +1515,22 @@ components:
           FINANCE_OFFICER,
           AUDITOR,
           WHATSAPP_BOT,
+        ]
+    AssignableUserRole:
+      type: string
+      description: >
+        UserRole minus SUPER_ADMIN (platform-level, "support only") and
+        WHATSAPP_BOT (a system principal, not a person) — see
+        lib/admin/user.ts's ASSIGNABLE_ROLES.
+      enum:
+        [
+          ORG_ADMIN,
+          DEPOT_MANAGER,
+          CLAIMS_MANAGER,
+          SURVEYOR,
+          WORKSHOP_COORDINATOR,
+          FINANCE_OFFICER,
+          AUDITOR,
         ]
 
     City:
