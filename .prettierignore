@@ -1,0 +1,9 @@
+.next
+node_modules
+coverage
+package-lock.json
+
+# Prose docs are hand-formatted (tables, mermaid fences); Prettier's markdown
+# reflow would create noisy diffs against content that's already been
+# reviewed and approved. Code files are still formatted normally.
+*.md
