@@ -17,6 +17,7 @@ security:
   - sessionCookie: []
 tags:
   - name: Me
+  - name: Search
   - name: Masters
     description: Cities, Depots, Vehicles, Drivers
   - name: Incidents
@@ -44,6 +45,31 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  # --- Search (M17) -------------------------------------------------------
+  /search:
+    get:
+      tags: [Search]
+      summary: >
+        Global search across incident/claim/vehicle numbers (M17). Same
+        org-scoping/DEPOT_MANAGER confinement as every list endpoint —
+        never returns a result the caller couldn't already reach through
+        the ordinary list pages.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 100 }
+      responses:
+        "200":
+          description: OK, up to 5 results per entity type
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SearchResult" }
+        "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   # --- Masters --------------------------------------------------------
@@ -1377,6 +1403,26 @@ components:
         email: { type: string, format: email }
         role: { $ref: "#/components/schemas/UserRole" }
         status: { type: string, enum: [ACTIVE, INACTIVE, SUSPENDED] }
+    SearchResult:
+      type: object
+      properties:
+        type: { type: string, enum: [incident, claim, vehicle] }
+        id: { type: string, format: uuid }
+        label:
+          {
+            type: string,
+            description: "The matched number (incidentNumber/claimNumber/registrationNumber)",
+          }
+        sublabel:
+          {
+            type: string,
+            description: "Incident type / claim type / make+model",
+          }
+        href:
+          {
+            type: string,
+            description: "The app route to navigate to on selection",
+          }
     UserRole:
       type: string
       enum:
