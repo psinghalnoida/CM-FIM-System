@@ -111,6 +111,20 @@ export interface ElapsedTimeSummary {
   breached: boolean;
 }
 
+// A structural subset of LoadedStageInstance — everything
+// computeElapsedTime actually reads, and nothing it doesn't. Callers
+// that only need the elapsed-time math (M23's TAT dashboard, M24's MIS
+// Reports) can `include` just this shape rather than the full
+// incident/claim payload loadStageInstance() fetches for its own RBAC
+// checks.
+export interface ElapsedTimeInput {
+  status: CaseStageStatus;
+  enteredAt: Date;
+  completedAt: Date | null;
+  stageTemplate: { targetHours: number };
+  holdPeriods: { startedAt: Date; endedAt: Date | null }[];
+}
+
 /**
  * PR-02: TAT-elapsed calculations exclude held time. Wall-clock elapsed
  * since enteredAt, minus the sum of every hold period's duration (an
@@ -119,7 +133,7 @@ export interface ElapsedTimeSummary {
  * are returned rather than throwing, since "not started" isn't an error.
  */
 export function computeElapsedTime(
-  instance: LoadedStageInstance,
+  instance: ElapsedTimeInput,
 ): ElapsedTimeSummary {
   const targetHours = instance.stageTemplate.targetHours;
   if (instance.status === CaseStageStatus.PENDING) {

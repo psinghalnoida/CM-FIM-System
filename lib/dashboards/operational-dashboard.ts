@@ -15,10 +15,13 @@ import {
 // depot-scope.ts elsewhere); every other role sees org-wide by default
 // and can optionally narrow to one depot. See docs/DASHBOARDS.md.
 
-const AGE_BUCKETS = ["0-3", "4-7", "8-14", "15+"] as const;
+// Exported — M24's MIS Reports reuses this exact bucketing for claim
+// ageing rather than redefining its own, so the two "how old" concepts
+// in this app never drift apart.
+export const AGE_BUCKETS = ["0-3", "4-7", "8-14", "15+"] as const;
 export type AgeBucket = (typeof AGE_BUCKETS)[number];
 
-function ageBucket(referenceDate: Date, now: Date): AgeBucket {
+export function ageBucket(referenceDate: Date, now: Date): AgeBucket {
   const days = Math.floor(
     (now.getTime() - referenceDate.getTime()) / (24 * 60 * 60 * 1000),
   );
@@ -28,7 +31,7 @@ function ageBucket(referenceDate: Date, now: Date): AgeBucket {
   return "15+";
 }
 
-function emptyBuckets(): Record<AgeBucket, number> {
+export function emptyBuckets(): Record<AgeBucket, number> {
   return Object.fromEntries(AGE_BUCKETS.map((bucket) => [bucket, 0])) as Record<
     AgeBucket,
     number
@@ -40,8 +43,10 @@ const INCIDENT_STATUSES = Object.values(IncidentStatus);
 
 // A claim still counts as "open" for aging purposes until it reaches one
 // of its two terminal states — SETTLED is money-resolved but not yet
-// formally closed, so it still counts (docs/DASHBOARDS.md).
-const CLAIM_TERMINAL_STATUSES: ClaimStatus[] = [
+// formally closed, so it still counts (docs/DASHBOARDS.md). Exported —
+// M24's MIS Reports reuses this for the same reason as the bucketing
+// functions above.
+export const CLAIM_TERMINAL_STATUSES: ClaimStatus[] = [
   ClaimStatus.CLOSED,
   ClaimStatus.REJECTED,
 ];

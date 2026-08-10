@@ -1610,6 +1610,78 @@ paths:
       responses:
         "200": { description: OK }
 
+  # --- TAT Dashboard (M23) --------------------------------------------------
+  /tat/dashboard:
+    get:
+      tags: [Dashboards]
+      summary: >-
+        A live board of every active (IN_PROGRESS/ON_HOLD) stage across
+        incidents and claims — not a history report, see docs/TAT.md's
+        M23 section
+      parameters:
+        - name: depotId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: caseType
+          in: query
+          description: The real CaseType enum, read off each stage's TatStageTemplate.
+          schema: { $ref: "#/components/schemas/CaseType" }
+        - name: breachedOnly
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200": { description: OK }
+
+  # --- MIS Reports (M24) ----------------------------------------------------
+  /reports/mis:
+    get:
+      tags: [Dashboards]
+      summary: >-
+        Claim ageing, TAT compliance %, incident-type frequency, and
+        repair turnaround by depot — see docs/DASHBOARDS.md's M24 section
+      parameters:
+        - name: depotId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK }
+
+  # --- Fleet Dashboard (M25) -------------------------------------------------
+  /fleet:
+    get:
+      tags: [Dashboards]
+      summary: >-
+        Fleet-wide KPIs plus a filterable vehicle list — see
+        docs/DASHBOARDS.md's M25 section
+      parameters:
+        - name: depotId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/VehicleStatus" }
+        - name: hasOpenIncidents
+          in: query
+          schema: { type: boolean }
+        - name: hasOpenClaims
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          {
+            description: "OK — { kpis, vehicles }",
+          }
+
+  # --- My Work (M26) ---------------------------------------------------------
+  /my-work:
+    get:
+      tags: [Dashboards]
+      summary: >-
+        A personalized "needs your action" view scoped to the caller's
+        role — see docs/DASHBOARDS.md's M26 section
+      responses:
+        "200": { description: OK }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -1799,6 +1871,9 @@ components:
     IncidentSeverity:
       type: string
       enum: [LOW, MEDIUM, HIGH, CRITICAL]
+    VehicleStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE, SOLD, SCRAPPED]
     Incident:
       type: object
       properties:
