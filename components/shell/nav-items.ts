@@ -1,9 +1,9 @@
 // M16: the sidebar's nav list, matching the Claims Mitra design's
 // section — but only linking to routes that actually exist today. The
-// design's list also includes Fleet, Documents (org-wide), TAT &
-// Escalations (unified), and Reports & MIS, none of which are built
-// yet — see docs/SCOPE.md's M19-M29 for each. Grows as those land;
-// never a placeholder link to a page that 404s.
+// design's list also includes Fleet, a unified TAT & Escalations view,
+// and Reports & MIS, none of which are built yet — see docs/SCOPE.md's
+// M23-M29 for each. Grows as those land; never a placeholder link to a
+// page that 404s. Documents (M22) added below.
 export interface NavItem {
   label: string;
   href: string;
@@ -15,6 +15,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Claims", href: "/claims" },
   { label: "Vehicles", href: "/vehicles" },
   { label: "Drivers", href: "/drivers" },
+  { label: "Documents", href: "/documents" },
   { label: "Depots", href: "/depots" },
   { label: "Cities", href: "/cities" },
   { label: "TAT Stage Templates", href: "/tat/stage-templates" },

@@ -22,6 +22,7 @@ import {
   getDocument,
   getDownloadUrl,
   listDocumentsForEntity,
+  listVehicleDocuments,
   presignDocumentUpload,
   presignVersionUpload,
 } from "@/lib/documents/document";
@@ -743,5 +744,106 @@ describe("Document linking to INCIDENT (M21)", () => {
     expect(docsForIncident.map((d) => d.title)).toEqual([
       "Police panchnama",
     ]);
+  });
+});
+
+describe("listVehicleDocuments (M22)", () => {
+  it("computes VALID/EXPIRING_SOON/EXPIRED/NO_EXPIRY correctly, is depot-scoped for DEPOT_MANAGER, and supports search/type/status filters", async () => {
+    const { org, depotA, depotB, vehicleA, vehicleB } =
+      await seedOrgWithTwoDepotsAndVehicles();
+    const admin = await userSessionWithRole(org, null, "ORG_ADMIN");
+    const managerA = await userSessionWithRole(org, depotA.id, "DEPOT_MANAGER");
+
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+
+    const validKey = await uploadViaPresign(admin, vehicleA.id, "valid doc");
+    await completeNewDocumentUpload(admin, {
+      storageKey: validKey,
+      fileName: "policy.pdf",
+      documentType: "INSURANCE_POLICY",
+      title: "Insurance policy A",
+      linkedEntityType: "VEHICLE",
+      linkedEntityId: vehicleA.id,
+      validityExpiryDate: new Date(now + 200 * day),
+    });
+
+    const expiringKey = await uploadViaPresign(admin, vehicleA.id, "expiring doc");
+    await completeNewDocumentUpload(admin, {
+      storageKey: expiringKey,
+      fileName: "fitness.pdf",
+      documentType: "FITNESS_CERTIFICATE",
+      title: "Fitness certificate A",
+      linkedEntityType: "VEHICLE",
+      linkedEntityId: vehicleA.id,
+      validityExpiryDate: new Date(now + 10 * day),
+    });
+
+    const expiredKey = await uploadViaPresign(admin, vehicleB.id, "expired doc");
+    await completeNewDocumentUpload(admin, {
+      storageKey: expiredKey,
+      fileName: "permit.pdf",
+      documentType: "PERMIT",
+      title: "Permit B",
+      linkedEntityType: "VEHICLE",
+      linkedEntityId: vehicleB.id,
+      validityExpiryDate: new Date(now - 5 * day),
+    });
+
+    const noExpiryKey = await uploadViaPresign(admin, vehicleB.id, "no expiry doc");
+    await completeNewDocumentUpload(admin, {
+      storageKey: noExpiryKey,
+      fileName: "estimate.pdf",
+      documentType: "REPAIR_ESTIMATE",
+      title: "Repair estimate B",
+      linkedEntityType: "VEHICLE",
+      linkedEntityId: vehicleB.id,
+    });
+
+    const orgWide = await listVehicleDocuments(admin);
+    expect(orgWide).toHaveLength(4);
+    const statusById = new Map(orgWide.map((d) => [d.title, d.status]));
+    expect(statusById.get("Insurance policy A")).toBe("VALID");
+    expect(statusById.get("Fitness certificate A")).toBe("EXPIRING_SOON");
+    expect(statusById.get("Permit B")).toBe("EXPIRED");
+    expect(statusById.get("Repair estimate B")).toBe("NO_EXPIRY");
+
+    // DEPOT_MANAGER (depotA) only sees vehicleA's two documents.
+    const asManagerA = await listVehicleDocuments(managerA);
+    expect(asManagerA).toHaveLength(2);
+    expect(asManagerA.every((d) => d.depotId === depotA.id)).toBe(true);
+
+    // depotId filter for a role with org-wide access.
+    const filteredByDepot = await listVehicleDocuments(admin, {
+      depotId: depotB.id,
+    });
+    expect(filteredByDepot).toHaveLength(2);
+
+    // documentType filter.
+    expect(
+      (await listVehicleDocuments(admin, { documentType: "PERMIT" })).map(
+        (d) => d.title,
+      ),
+    ).toEqual(["Permit B"]);
+
+    // status filter.
+    expect(
+      (await listVehicleDocuments(admin, { status: "EXPIRED" })).map(
+        (d) => d.title,
+      ),
+    ).toEqual(["Permit B"]);
+
+    // search filter (matches vehicle registration or title).
+    expect(
+      (await listVehicleDocuments(admin, { search: "fitness" })).map(
+        (d) => d.title,
+      ),
+    ).toEqual(["Fitness certificate A"]);
+
+    // A DEPOT_MANAGER explicitly filtering by another depot gets an
+    // empty list, not a leak.
+    expect(await listVehicleDocuments(managerA, { depotId: depotB.id })).toEqual(
+      [],
+    );
   });
 });

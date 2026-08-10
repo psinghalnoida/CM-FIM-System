@@ -9,7 +9,7 @@ and payment.
 
 ## Status
 
-**M1–M9, M11, M13–M21** are done: app scaffold, Docker Compose, tooling,
+**M1–M9, M11, M13–M22** are done: app scaffold, Docker Compose, tooling,
 the full Phase 1 Prisma schema, credential login/logout with
 database-backed sessions, role gating and org-scoping,
 City/Depot/Vehicle/Driver CRUD with depot-scoped RBAC and audit logging, a
@@ -52,8 +52,12 @@ Corporate Dashboard richness (CSV export and richer filters on the
 Incident List; Incident Detail as the design's 7-tab layout, with
 document-linking extended to incidents and two new `injuries`/
 `thirdPartyInvolved` fields; a pipeline funnel and per-depot performance
-breakdown added to the operational dashboard).
-M22-M30, the rest of the UI-alignment milestones scoped from that
+breakdown added to the operational dashboard), and the Document
+Repository + Viewer (an org-wide document list scoped to VEHICLE-linked
+documents, with expiry-status KPI tiles and an averaged OCR-confidence
+column, plus a restyled Document Viewer with a confidence bar and a
+"Request re-upload" action that opens the real re-upload flow).
+M23-M30, the rest of the UI-alignment milestones scoped from that
 design, remain — see `docs/SCOPE.md`'s "UI/UX alignment" section. M10 (WhatsApp)
 and M12 (Telematics) are deferred pending JBM credentials; the roadmap
 otherwise continues with whatever's scoped next. See

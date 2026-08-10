@@ -1152,20 +1152,53 @@ paths:
   /documents:
     get:
       tags: [Documents]
-      summary: List documents linked to an entity
+      summary: List documents linked to an entity, or the org-wide Document Repository
+      description: >-
+        Pass both linkedEntityType and linkedEntityId to list one entity's
+        documents (M5), across every LinkedEntityType. Omit both instead to
+        get the M22 "Document Repository" — the org-wide list, deliberately
+        scoped to VEHICLE-linked documents only (see
+        lib/documents/document.ts's listVehicleDocuments doc comment and
+        docs/DOCUMENTS.md) — filterable by the query params below and
+        depot-scoped for DEPOT_MANAGER same as every other list endpoint.
       parameters:
         - name: linkedEntityType
           in: query
-          required: true
+          required: false
           schema: { $ref: "#/components/schemas/LinkedEntityType" }
         - name: linkedEntityId
           in: query
-          required: true
+          required: false
           schema: { type: string, format: uuid }
+        - name: search
+          in: query
+          required: false
+          description: Document Repository mode only — matches vehicle registration or document title, case-insensitive.
+          schema: { type: string }
+        - name: vehicleId
+          in: query
+          required: false
+          description: Document Repository mode only.
+          schema: { type: string, format: uuid }
+        - name: depotId
+          in: query
+          required: false
+          description: Document Repository mode only. A DEPOT_MANAGER filtering by a depot other than their own gets [], not a bypass or a confusing empty result via query collision.
+          schema: { type: string, format: uuid }
+        - name: documentType
+          in: query
+          required: false
+          description: Document Repository mode only.
+          schema: { $ref: "#/components/schemas/DocumentType" }
+        - name: status
+          in: query
+          required: false
+          description: Document Repository mode only.
+          schema: { $ref: "#/components/schemas/VehicleDocumentStatus" }
       responses:
         "200":
           {
-            description: OK,
+            description: OK — an array of Document (entity mode) or VehicleDocumentRow (Document Repository mode),
             content:
               {
                 application/json:
@@ -1173,7 +1206,14 @@ paths:
                     schema:
                       {
                         type: array,
-                        items: { $ref: "#/components/schemas/Document" },
+                        items:
+                          {
+                            oneOf:
+                              [
+                                { $ref: "#/components/schemas/Document" },
+                                { $ref: "#/components/schemas/VehicleDocumentRow" },
+                              ],
+                          },
                       },
                   },
               },
@@ -1975,6 +2015,29 @@ components:
         currentVersionId: { type: string, format: uuid, nullable: true }
         validityStartDate: { type: string, format: date-time, nullable: true }
         validityExpiryDate: { type: string, format: date-time, nullable: true }
+    VehicleDocumentStatus:
+      type: string
+      enum: [VALID, EXPIRING_SOON, EXPIRED, NO_EXPIRY]
+    VehicleDocumentRow:
+      description: >-
+        A row of the M22 org-wide "Document Repository" list — VEHICLE-linked
+        documents only, see GET /documents.
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        documentType: { $ref: "#/components/schemas/DocumentType" }
+        vehicleId: { type: string, format: uuid }
+        vehicleRegistration: { type: string }
+        depotId: { type: string, format: uuid }
+        depotName: { type: string }
+        validityExpiryDate: { type: string, format: date-time, nullable: true }
+        status: { $ref: "#/components/schemas/VehicleDocumentStatus" }
+        ocrConfidencePercent:
+          description: Average of this document's OCR fields' confidence, 0-100. Null if no OCR extraction exists yet (distinct from 0% confident).
+          type: integer
+          nullable: true
+        uploadedAt: { type: string, format: date-time, nullable: true }
     PresignResult:
       type: object
       properties:

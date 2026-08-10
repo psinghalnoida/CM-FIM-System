@@ -245,6 +245,38 @@ export interface ListIncidentsFilter {
   dateTo?: Date;
 }
 
+/**
+ * Shared by the Incident List page's GET and GET /api/incidents/export —
+ * parses the same filter shape from a URL's query string. Lives here
+ * (not in a route.ts) because Next's route-type checking rejects a
+ * route.ts file exporting anything beyond the recognized handler/config
+ * names — surfaced by `next build`'s internal typecheck, not plain `tsc`.
+ */
+export function parseListIncidentsFilter(
+  searchParams: URLSearchParams,
+): ListIncidentsFilter {
+  const status = searchParams.get("status");
+  const severity = searchParams.get("severity");
+  const incidentType = searchParams.get("incidentType");
+  const depotId = searchParams.get("depotId");
+  const dateFrom = searchParams.get("dateFrom");
+  const dateTo = searchParams.get("dateTo");
+  return {
+    status: status === "OPEN" || status === "CLOSED" ? status : undefined,
+    severity:
+      severity && severity in IncidentSeverity
+        ? (severity as IncidentSeverity)
+        : undefined,
+    incidentType:
+      incidentType && incidentType in IncidentType
+        ? (incidentType as IncidentType)
+        : undefined,
+    depotId: depotId ?? undefined,
+    dateFrom: dateFrom ? new Date(dateFrom) : undefined,
+    dateTo: dateTo ? new Date(dateTo) : undefined,
+  };
+}
+
 /** DEPOT_MANAGER only sees incidents at their own depot; other roles see the whole org — a depotId filter from another role is further AND-ed in, not a bypass. */
 export async function listIncidents(
   session: AuthSession,

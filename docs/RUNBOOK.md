@@ -139,3 +139,28 @@ redis-server --daemonize yes --port 6379
 then re-run whatever failed. This has been the standard recovery step
 throughout this project's development — see any of `docs/OCR.md`,
 `docs/ESCALATIONS.md`, `docs/PAYMENTS.md` for it recurring.
+
+### `npm run build` fails to prerender `/` in this sandbox (M22)
+
+`next build`'s default multi-worker static-generation step
+deterministically fails in this sandbox with `TypeError: Cannot read
+properties of null (reading 'useContext')` while prerendering `/` (and
+the `/_global-error` fallback), the trace pointing into Next's own
+internal `OuterLayoutRouter`, not app code — a static-generation-worker
+race specific to this Next.js version in this container (confirmed by
+reproducing the identical failure on an unmodified `main` checkout with
+a clean `.next` cache, and by confirming it disappears when Next is
+forced to render single-threaded). It is not caused by any app code
+change and has not been root-caused further (out of scope to patch
+Next's internals). Work around it locally with:
+
+```bash
+npx next build --debug-prerender
+```
+
+(a documented, real Next.js CLI flag — not a hack — that serializes
+prerendering; it prints "Not for production use" but is fine for local
+build verification in this sandbox). A real deployment target (Docker
+build, CI, JBM's actual servers) may not have this sandbox's worker
+concurrency characteristics and may not need the flag — try a plain
+`npm run build` there first.
