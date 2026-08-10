@@ -4,7 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
-export function SettlementActions({
+// M19: JBM records a *response* to the insurer's settlement offer, not
+// an approval/rejection decision — JBM is the insured, not an approving
+// authority. See docs/PAYMENTS.md.
+export function SettlementResponseActions({
   claimId,
   settlementId,
 }: {
@@ -14,7 +17,7 @@ export function SettlementActions({
   const router = useRouter();
   const [pending, setPending] = useState(false);
 
-  async function act(action: "approve" | "reject") {
+  async function act(action: "accept" | "dispute" | "request-review") {
     setPending(true);
     try {
       const res = await fetch(
@@ -29,19 +32,22 @@ export function SettlementActions({
 
   return (
     <div className="flex gap-2">
-      <Button
-        variant="outline"
-        disabled={pending}
-        onClick={() => act("approve")}
-      >
-        Approve
+      <Button variant="outline" disabled={pending} onClick={() => act("accept")}>
+        Accept
       </Button>
       <Button
         variant="outline"
         disabled={pending}
-        onClick={() => act("reject")}
+        onClick={() => act("dispute")}
       >
-        Reject
+        Dispute
+      </Button>
+      <Button
+        variant="outline"
+        disabled={pending}
+        onClick={() => act("request-review")}
+      >
+        Request review
       </Button>
     </div>
   );

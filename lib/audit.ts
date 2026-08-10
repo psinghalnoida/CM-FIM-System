@@ -41,3 +41,19 @@ export async function recordAudit(input: RecordAuditInput): Promise<void> {
     },
   });
 }
+
+// M19: backs every sub-record detail page's "Timeline" tab. No RBAC of
+// its own — same shape as assertClaimSettlementSatisfied (a pure read
+// helper, not an action); the caller's own getX() has already checked
+// the session can see this entity before rendering its timeline.
+export async function listAuditLogForEntity(
+  organizationId: string,
+  entityType: string,
+  entityId: string,
+) {
+  return db.auditLog.findMany({
+    where: { organizationId, entityType, entityId },
+    include: { actor: true },
+    orderBy: { createdAt: "asc" },
+  });
+}

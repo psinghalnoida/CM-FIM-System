@@ -161,7 +161,7 @@ model User {
   workshopActivities        WorkshopActivity[]      @relation("WorkshopActivityActor")
   createdTatHoldPeriods     TatHoldPeriod[]         @relation("TatHoldPeriodCreatedBy")
   notifiedByEscalationRules EscalationRule[]        @relation("EscalationRuleNotifyUser")
-  approvedSettlements       Settlement[]            @relation("SettlementApprovedBy")
+  respondedSettlements      Settlement[]            @relation("SettlementRespondedBy")
   reconciledPayments        Payment[]               @relation("PaymentReconciledBy")
   sessions                  Session[]
 
@@ -407,6 +407,7 @@ enum LinkedEntityType {
   CLAIM
   SURVEY
   REPAIR_JOB
+  SETTLEMENT
 }
 
 model DocumentLink {
@@ -686,9 +687,23 @@ model RepairJob {
   updatedAt       DateTime        @updatedAt
 
   activities WorkshopActivity[]
+  parts      RepairPart[]
 
   @@index([claimId])
   @@map("repair_jobs")
+}
+
+// M19: the design's Repair Detail "Parts" tab — a simple named-parts list,
+// not a parts-catalog/inventory system (no cost/qty tracking asked for).
+model RepairPart {
+  id          String    @id @default(uuid())
+  repairJobId String
+  repairJob   RepairJob @relation(fields: [repairJobId], references: [id])
+  partName    String
+  createdAt   DateTime  @default(now())
+
+  @@index([repairJobId])
+  @@map("repair_parts")
 }
 
 model WorkshopActivity {
@@ -871,10 +886,16 @@ model EscalationEvent {
 // domain-settlement service, not here)
 // ---------------------------------------------------------------------------
 
+// M19: JBM is the insured, not an approving authority — the insurer
+// settles the claim, the surveyor recommends the loss. Settlement.status
+// records JBM's *response* to the insurer's settlement offer, not a
+// financial approval decision. No monetary approval ceiling exists (or
+// should be added) anywhere in this system — see docs/PAYMENTS.md.
 enum SettlementStatus {
   PENDING
-  APPROVED
-  REJECTED
+  ACCEPTED
+  DISPUTED
+  REVIEW_REQUESTED
 }
 
 model Settlement {
@@ -888,9 +909,9 @@ model Settlement {
   settlementAmount Decimal          @db.Decimal(14, 2)
   currency         String           @default("INR") @db.Char(3)
   status           SettlementStatus @default(PENDING)
-  approvedById     String?
-  approvedBy       User?            @relation("SettlementApprovedBy", fields: [approvedById], references: [id])
-  approvedAt       DateTime?
+  respondedById    String?
+  respondedBy      User?            @relation("SettlementRespondedBy", fields: [respondedById], references: [id])
+  respondedAt      DateTime?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 

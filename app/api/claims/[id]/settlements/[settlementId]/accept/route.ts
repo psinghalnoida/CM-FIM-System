@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/dal";
 import { toApiErrorResponse } from "@/lib/api-errors";
-import { approveSettlement } from "@/lib/settlements/settlement";
+import { acceptSettlement } from "@/lib/settlements/settlement";
 
+// M19: JBM accepts the insurer's settlement offer as-is — records a
+// response, not a claim approval. See docs/PAYMENTS.md.
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string; settlementId: string }> },
@@ -10,7 +12,7 @@ export async function POST(
   const session = await verifySession();
   const { settlementId } = await params;
   try {
-    const settlement = await approveSettlement(session, settlementId);
+    const settlement = await acceptSettlement(session, settlementId);
     return NextResponse.json(settlement);
   } catch (err) {
     return toApiErrorResponse(err);

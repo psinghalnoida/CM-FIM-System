@@ -88,9 +88,12 @@ settlement per claim, `Settlement.claimId` is a plain many-to-one — this
 allows an interim settlement followed by a final one, which is normal for
 larger insurance claims. BR-09 (no closure without settlement) is a
 business-rule check the `domain-settlement` service makes at closure time
-(e.g. "the latest settlement is `APPROVED` and its payments sum to the
+(e.g. "every settlement is `ACCEPTED` and its payments sum to the
 settlement amount and are all reconciled") — the schema doesn't and
-shouldn't try to encode that logic itself.
+shouldn't try to encode that logic itself. (`APPROVED` was this
+milestone's original guess at the status name; M19 corrected it to
+`ACCEPTED` — JBM records a response to the insurer's offer, not an
+approval decision. See `docs/PAYMENTS.md`.)
 
 **`EscalationRule` is configuration only — no `EscalationEvent` log yet.**
 This milestone defines *what* should happen when a stage's TAT is

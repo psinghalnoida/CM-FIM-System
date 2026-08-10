@@ -11,6 +11,14 @@ validity-date fields, and linkage to Vehicle/Driver (the `DocumentLink`
 generic join from M2a). OCR extraction hook-up is **not** this milestone —
 that's M11.
 
+**Update (M19):** `lib/documents/link-scope.ts`'s `resolveDepotId()` grew
+cases for `CLAIM`/`SURVEY`/`REPAIR_JOB`/`SETTLEMENT` — the pattern this
+doc's own code comment predicted ("will each need a case added here once
+their owning module exists"). Each new type's write RBAC mirrors that
+entity's own module's `WRITE_ROLES` (e.g. a survey report is uploaded by
+whoever can write a `Survey`), not the `VEHICLE`/`DRIVER` default. See
+`docs/CLAIM_SUBRECORDS.md`.
+
 ## The upload flow
 
 ```mermaid

@@ -205,6 +205,51 @@ export async function addWorkshopActivity(
   return activity;
 }
 
+// M19: a named-parts list for the Repair Detail page's "Parts" tab — see
+// prisma/schema.prisma's RepairPart comment for why this isn't a
+// parts-catalog/inventory model.
+export const AddRepairPartSchema = z.object({
+  partName: z.string().trim().min(1).max(200),
+});
+export type AddRepairPartInput = z.infer<typeof AddRepairPartSchema>;
+
+export async function addRepairPart(
+  session: AuthSession,
+  repairJobId: string,
+  input: unknown,
+) {
+  requireRole(session, ...WRITE_ROLES);
+  const data = AddRepairPartSchema.parse(input);
+  await assertRepairJobAccessible(session, repairJobId);
+
+  const part = await db.repairPart.create({
+    data: { repairJobId, partName: data.partName },
+  });
+
+  await recordAudit({
+    organizationId: session.user.organizationId,
+    entityType: "RepairPart",
+    entityId: part.id,
+    action: "CREATE",
+    actorId: session.user.id,
+    afterData: part,
+    sourceChannel: "WEB",
+  });
+
+  return part;
+}
+
+export async function listRepairPartsForRepairJob(
+  session: AuthSession,
+  repairJobId: string,
+) {
+  await assertRepairJobAccessible(session, repairJobId);
+  return db.repairPart.findMany({
+    where: { repairJobId },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
 export async function getRepairJob(session: AuthSession, id: string) {
   const scoped = scopedDb(session.user.organizationId);
   const repairJob = await scoped.repairJob.findUnique({
@@ -212,6 +257,7 @@ export async function getRepairJob(session: AuthSession, id: string) {
     include: {
       claim: { include: { incident: true } },
       activities: { orderBy: { occurredAt: "desc" } },
+      parts: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!repairJob) return null;

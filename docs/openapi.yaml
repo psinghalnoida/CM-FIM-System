@@ -602,9 +602,10 @@ paths:
         Transition a claim's status. OPEN -> UNDER_SURVEY -> UNDER_REPAIR
         -> PENDING_SETTLEMENT -> SETTLED -> CLOSED, or REJECTED at any
         point before SETTLED. Reaching CLOSED enforces BR-09 (see
-        docs/PAYMENTS.md): every non-REJECTED settlement on the claim
-        must be APPROVED, its payments must sum to the settlement
-        amount, and every payment must be reconciled.
+        docs/PAYMENTS.md): every settlement on the claim must be
+        ACCEPTED (JBM's response to the insurer's offer, not an approval
+        decision), its payments must sum to the settlement amount, and
+        every payment must be reconciled.
       requestBody:
         content:
           application/json:
@@ -822,8 +823,30 @@ paths:
                 notes: { type: string, maxLength: 2000 }
       responses:
         "201": { description: Created }
+  /claims/{id}/repair-jobs/{repairJobId}/parts:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - name: repairJobId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [RepairJobs]
+      summary: >-
+        Add a named part to the repair job (M19, the Repair Detail
+        "Parts" tab) — a simple list, not a parts catalog/inventory.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [partName]
+              properties:
+                partName: { type: string, maxLength: 200 }
+      responses:
+        "201": { description: Created }
 
-  # --- Settlements & Payments (M14) --------------------------------------
+  # --- Settlements & Payments (M14; M19 reworked settlement responses) ---
   /claims/{id}/settlements:
     parameters: [{ $ref: "#/components/parameters/Id" }]
     get:
@@ -881,29 +904,48 @@ paths:
               },
           }
         "404": { $ref: "#/components/responses/NotFound" }
-  /claims/{id}/settlements/{settlementId}/approve:
+  /claims/{id}/settlements/{settlementId}/accept:
     parameters:
       - { $ref: "#/components/parameters/Id" }
       - { $ref: "#/components/parameters/SettlementId" }
     post:
       tags: [Settlements]
-      summary: Approve a PENDING settlement (ORG_ADMIN, FINANCE_OFFICER)
+      summary: >-
+        JBM accepts the insurer's settlement offer as-is (ORG_ADMIN,
+        FINANCE_OFFICER) — a response, not a claim approval decision.
+        Terminal: rejects re-deciding an already-ACCEPTED settlement.
       responses:
         "200": { description: OK }
         "409":
-          description: Settlement is not PENDING (already decided)
+          description: Settlement has already been accepted
           content:
             {
               application/json:
                 { schema: { $ref: "#/components/schemas/Error" } },
             }
-  /claims/{id}/settlements/{settlementId}/reject:
+  /claims/{id}/settlements/{settlementId}/dispute:
     parameters:
       - { $ref: "#/components/parameters/Id" }
       - { $ref: "#/components/parameters/SettlementId" }
     post:
       tags: [Settlements]
-      summary: Reject a PENDING settlement — never blocks claim closure, even if unpaid
+      summary: >-
+        JBM disputes/raises a concern about the insurer's settlement offer
+        (ORG_ADMIN, FINANCE_OFFICER) — not terminal, can still move to
+        ACCEPTED or REVIEW_REQUESTED later. Blocks claim closure (BR-09)
+        until resolved.
+      responses:
+        "200": { description: OK }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /claims/{id}/settlements/{settlementId}/request-review:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/SettlementId" }
+    post:
+      tags: [Settlements]
+      summary: >-
+        JBM asks the insurer to review the settlement offer before
+        deciding (ORG_ADMIN, FINANCE_OFFICER) — not terminal.
       responses:
         "200": { description: OK }
         "409": { $ref: "#/components/responses/Conflict" }
@@ -932,7 +974,7 @@ paths:
           }
     post:
       tags: [Payments]
-      summary: Record a payment (ORG_ADMIN, FINANCE_OFFICER) — settlement must be APPROVED; a settlement can be split across multiple payments
+      summary: Record a payment (ORG_ADMIN, FINANCE_OFFICER) — settlement must be ACCEPTED; a settlement can be split across multiple payments
       requestBody:
         content:
           application/json:
@@ -952,12 +994,34 @@ paths:
       responses:
         "201": { description: Created }
         "409":
-          description: Settlement is not APPROVED
+          description: Settlement is not ACCEPTED
           content:
             {
               application/json:
                 { schema: { $ref: "#/components/schemas/Error" } },
             }
+  /claims/{id}/settlements/{settlementId}/payments/{paymentId}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/SettlementId" }
+      - name: paymentId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Payments]
+      summary: Get a payment
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/Payment" } },
+              },
+          }
+        "404": { $ref: "#/components/responses/NotFound" }
   /claims/{id}/settlements/{settlementId}/payments/{paymentId}/reconcile:
     parameters:
       - { $ref: "#/components/parameters/Id" }
@@ -1673,6 +1737,19 @@ components:
         status:
           { type: string, enum: [SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED] }
         scheduledAt: { type: string, format: date-time, nullable: true }
+        findings:
+          {
+            type: string,
+            nullable: true,
+            description: "Survey observations — M19's Survey Detail 'Observations' tab",
+          }
+
+    RepairPart:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        repairJobId: { type: string, format: uuid }
+        partName: { type: string }
 
     RepairJob:
       type: object
@@ -1694,10 +1771,18 @@ components:
             enum:
               [ESTIMATE_PENDING, APPROVED, IN_PROGRESS, COMPLETED, CANCELLED],
           }
+        parts:
+          type: array
+          items: { $ref: "#/components/schemas/RepairPart" }
 
     SettlementStatus:
       type: string
-      enum: [PENDING, APPROVED, REJECTED]
+      description: >-
+        JBM's *response* to the insurer's settlement offer (M19) — JBM is
+        the insured, not an approving authority, so this is not a claim
+        approval decision. PENDING/DISPUTED/REVIEW_REQUESTED can all move
+        to any of the three response states; ACCEPTED is terminal.
+      enum: [PENDING, ACCEPTED, DISPUTED, REVIEW_REQUESTED]
     Settlement:
       type: object
       properties:
@@ -1708,8 +1793,8 @@ components:
           { type: string, description: "Decimal(14,2), serialized as a string" }
         currency: { type: string, example: INR }
         status: { $ref: "#/components/schemas/SettlementStatus" }
-        approvedById: { type: string, format: uuid, nullable: true }
-        approvedAt: { type: string, format: date-time, nullable: true }
+        respondedById: { type: string, format: uuid, nullable: true }
+        respondedAt: { type: string, format: date-time, nullable: true }
         payments:
           type: array
           items: { $ref: "#/components/schemas/Payment" }
@@ -1731,7 +1816,17 @@ components:
 
     LinkedEntityType:
       type: string
-      enum: [VEHICLE, DRIVER, INCIDENT, POLICY, CLAIM, SURVEY, REPAIR_JOB]
+      enum:
+        [
+          VEHICLE,
+          DRIVER,
+          INCIDENT,
+          POLICY,
+          CLAIM,
+          SURVEY,
+          REPAIR_JOB,
+          SETTLEMENT,
+        ]
     DocumentType:
       type: string
       enum:

@@ -7,11 +7,13 @@ import { recordAudit } from "@/lib/audit";
 import { DomainError } from "@/lib/domain-error";
 import { SettlementStatus } from "@/lib/generated/prisma/enums";
 
-// M14: settlement recording + BR-09's closure gate. A claim can have
-// multiple settlements (interim + final) — see docs/schema/M2B.md — so
-// the gate checks every non-REJECTED settlement, not just the most
-// recent one; a REJECTED settlement was never going to be paid and is
-// excluded entirely. See docs/PAYMENTS.md.
+// M14: settlement recording; M19: reworked to record JBM's *response* to
+// the insurer's settlement offer, not a financial approval decision — JBM
+// is the insured, not an approving authority (the insurer settles the
+// claim, the surveyor recommends the loss). BR-09's closure gate checks
+// every settlement on the claim, not just the most recent one — a claim
+// can have multiple settlements (interim + final), see
+// docs/schema/M2B.md. See docs/PAYMENTS.md.
 
 const WRITE_ROLES = ["ORG_ADMIN", "FINANCE_OFFICER"] as const;
 
@@ -60,6 +62,14 @@ export async function createSettlement(session: AuthSession, input: unknown) {
   return settlement;
 }
 
+/**
+ * Records JBM's response to the insurer's settlement offer. PENDING,
+ * DISPUTED, and REVIEW_REQUESTED can all move to any of the three
+ * response states — JBM's position can change as a dispute/review plays
+ * out with the insurer. ACCEPTED is terminal: once JBM has accepted an
+ * offer (the trigger for recording payments against it, BR-09), that
+ * decision doesn't get walked back through this endpoint.
+ */
 async function transitionSettlementStatus(
   session: AuthSession,
   id: string,
@@ -69,16 +79,20 @@ async function transitionSettlementStatus(
   const scoped = scopedDb(session.user.organizationId);
 
   const before = await scoped.settlement.findUniqueOrThrow({ where: { id } });
-  if (before.status !== SettlementStatus.PENDING) {
+  if (before.status === SettlementStatus.ACCEPTED) {
     throw new DomainError(
-      `Cannot decide a settlement that is already ${before.status}.`,
+      "This settlement has already been accepted — its response cannot be changed.",
       409,
     );
   }
 
   const settlement = await scoped.settlement.update({
     where: { id },
-    data: { status: to, approvedById: session.user.id, approvedAt: new Date() },
+    data: {
+      status: to,
+      respondedById: session.user.id,
+      respondedAt: new Date(),
+    },
   });
 
   await recordAudit({
@@ -95,19 +109,33 @@ async function transitionSettlementStatus(
   return settlement;
 }
 
-export async function approveSettlement(session: AuthSession, id: string) {
-  return transitionSettlementStatus(session, id, SettlementStatus.APPROVED);
+/** JBM accepts the insurer's settlement offer as-is. */
+export async function acceptSettlement(session: AuthSession, id: string) {
+  return transitionSettlementStatus(session, id, SettlementStatus.ACCEPTED);
 }
 
-export async function rejectSettlement(session: AuthSession, id: string) {
-  return transitionSettlementStatus(session, id, SettlementStatus.REJECTED);
+/** JBM disputes/raises a concern about the insurer's settlement offer. */
+export async function disputeSettlement(session: AuthSession, id: string) {
+  return transitionSettlementStatus(session, id, SettlementStatus.DISPUTED);
+}
+
+/** JBM asks the insurer to review the settlement offer before deciding. */
+export async function requestSettlementReview(
+  session: AuthSession,
+  id: string,
+) {
+  return transitionSettlementStatus(
+    session,
+    id,
+    SettlementStatus.REVIEW_REQUESTED,
+  );
 }
 
 export async function getSettlement(session: AuthSession, id: string) {
   const scoped = scopedDb(session.user.organizationId);
   return scoped.settlement.findUnique({
     where: { id },
-    include: { payments: true },
+    include: { payments: true, claim: true },
   });
 }
 
@@ -125,9 +153,12 @@ export async function listSettlementsForClaim(
 }
 
 /**
- * BR-09: throws unless every non-REJECTED settlement on this claim is
- * APPROVED, its payments sum to the settlement amount, and every
- * payment is reconciled. Called from lib/claims/claim.ts's
+ * BR-09: throws unless every settlement on this claim has been ACCEPTED
+ * by JBM, its payments sum to the settlement amount, and every payment
+ * is reconciled. There's no excluded/ignorable settlement status —
+ * unlike the pre-M19 model's REJECTED, JBM can't unilaterally remove a
+ * settlement from consideration; every insurer offer needs a resolved
+ * response before the claim can close. Called from lib/claims/claim.ts's
  * transitionClaimStatus() on the SETTLED -> CLOSED transition — this
  * function has no RBAC/session of its own since it's a pure gate check,
  * not an action; the caller already checked write access.
@@ -137,18 +168,14 @@ export async function assertClaimSettlementSatisfied(
   claimId: string,
 ): Promise<void> {
   const settlements = await db.settlement.findMany({
-    where: {
-      organizationId,
-      claimId,
-      status: { not: SettlementStatus.REJECTED },
-    },
+    where: { organizationId, claimId },
     include: { payments: true },
   });
 
   for (const settlement of settlements) {
-    if (settlement.status !== SettlementStatus.APPROVED) {
+    if (settlement.status !== SettlementStatus.ACCEPTED) {
       throw new DomainError(
-        `Settlement ${settlement.id} is still ${settlement.status} — approve or reject it before closing the claim.`,
+        `Settlement ${settlement.id} is still ${settlement.status} — JBM must accept the insurer's settlement offer before closing the claim.`,
         409,
       );
     }

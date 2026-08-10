@@ -1,6 +1,6 @@
 // Integration tests for the M14 payment service (lib/settlements/payment.ts)
 // against a real Postgres instance: createPayment's RBAC + "settlement must
-// be APPROVED" gate, reconcilePayment's success/already-reconciled/cross-org
+// be ACCEPTED" gate, reconcilePayment's success/already-reconciled/cross-org
 // paths (Payment has no organizationId column — see the comment in
 // lib/settlements/payment.ts), and listPaymentsForSettlement.
 //
@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 import type { AuthSession } from "@/lib/dal";
 import { createClaim, transitionClaimStatus } from "@/lib/claims/claim";
 import {
-  approveSettlement,
+  acceptSettlement,
   createSettlement,
 } from "@/lib/settlements/settlement";
 import {
@@ -155,7 +155,7 @@ async function seedOrgWithPendingSettlement(amount = 5000) {
 }
 
 describe("createPayment", () => {
-  it("rejects recording a payment against a PENDING (not yet APPROVED) settlement", async () => {
+  it("rejects recording a payment against a PENDING (not yet ACCEPTED) settlement", async () => {
     const { admin, settlement } = await seedOrgWithPendingSettlement();
 
     await expect(
@@ -164,12 +164,12 @@ describe("createPayment", () => {
         amount: 1000,
         paymentDate: new Date(),
       }),
-    ).rejects.toThrow(/not APPROVED/);
+    ).rejects.toThrow(/not ACCEPTED/);
   });
 
-  it("FINANCE_OFFICER and ORG_ADMIN can record a payment once APPROVED; CLAIMS_MANAGER cannot", async () => {
+  it("FINANCE_OFFICER and ORG_ADMIN can record a payment once ACCEPTED; CLAIMS_MANAGER cannot", async () => {
     const { org, admin, settlement } = await seedOrgWithPendingSettlement();
-    await approveSettlement(admin, settlement.id);
+    await acceptSettlement(admin, settlement.id);
     const financeOfficer = await userSessionWithRole(org, "FINANCE_OFFICER");
     const claimsManager = await userSessionWithRole(org, "CLAIMS_MANAGER");
 
@@ -201,7 +201,7 @@ describe("createPayment", () => {
 describe("reconcilePayment", () => {
   it("marks a payment reconciled, records audit, and rejects reconciling it twice", async () => {
     const { admin, settlement } = await seedOrgWithPendingSettlement();
-    await approveSettlement(admin, settlement.id);
+    await acceptSettlement(admin, settlement.id);
     const payment = await createPayment(admin, {
       settlementId: settlement.id,
       amount: 5000,
@@ -226,7 +226,7 @@ describe("reconcilePayment", () => {
   it("returns 404 (not the cross-org payment) when reconciling another org's payment by id", async () => {
     const { admin: adminA, settlement: settlementA } =
       await seedOrgWithPendingSettlement();
-    await approveSettlement(adminA, settlementA.id);
+    await acceptSettlement(adminA, settlementA.id);
     const paymentA = await createPayment(adminA, {
       settlementId: settlementA.id,
       amount: 5000,
@@ -250,7 +250,7 @@ describe("reconcilePayment", () => {
 describe("listPaymentsForSettlement", () => {
   it("lists payments for a settlement ordered by payment date", async () => {
     const { admin, settlement } = await seedOrgWithPendingSettlement();
-    await approveSettlement(admin, settlement.id);
+    await acceptSettlement(admin, settlement.id);
     await createPayment(admin, {
       settlementId: settlement.id,
       amount: 2000,
