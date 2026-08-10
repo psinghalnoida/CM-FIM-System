@@ -28,6 +28,7 @@ const PROTECTED_PREFIXES = [
   "/dashboards",
   "/documents",
   "/escalation-rules",
+  "/admin",
 ];
 const AUTH_ROUTES = ["/login"];
 
@@ -67,6 +68,7 @@ export const config = {
     "/dashboards/:path*",
     "/documents/:path*",
     "/escalation-rules/:path*",
+    "/admin/:path*",
     "/login",
   ],
 };

@@ -9,7 +9,7 @@ and payment.
 
 ## Status
 
-**M1–M9, M11, and M13–M15** are done: app scaffold, Docker Compose, tooling,
+**M1–M9, M11, M13–M18** are done: app scaffold, Docker Compose, tooling,
 the full Phase 1 Prisma schema, credential login/logout with
 database-backed sessions, role gating and org-scoping,
 City/Depot/Vehicle/Driver CRUD with depot-scoped RBAC and audit logging, a
@@ -35,20 +35,29 @@ non-rejected settlement on it is approved, fully paid, and reconciled),
 and testing/deployment hardening (a realistic multi-depot JBM demo seed
 dataset, a full green test suite — 149 unit/integration tests plus a
 real-HTTP e2e smoke script, a hand-maintained OpenAPI spec for the whole
-API surface, and deployment/runbook docs). M10 (WhatsApp) and M12
-(Telematics) are deferred pending JBM credentials; the roadmap otherwise
-continues with whatever's scoped next. See [`docs/SCOPE.md`](docs/SCOPE.md)
-for the milestone plan, [`docs/schema/`](docs/schema/),
-[`docs/AUTH.md`](docs/AUTH.md), [`docs/MASTERS.md`](docs/MASTERS.md),
+API surface, and deployment/runbook docs), a UI foundation (a shared
+nav shell — sidebar + header — every page now renders inside, and the
+Claims Mitra design's color/type/spacing tokens adopted app-wide), and
+global search (incident/claim/vehicle number, wired into the header),
+and Administration: Users (create/list/deactivate + role assignment —
+the first real way to manage a user other than direct database access).
+M19-M30, the rest of the UI-alignment milestones scoped from that
+design, remain — see `docs/SCOPE.md`'s "UI/UX alignment" section. M10 (WhatsApp)
+and M12 (Telematics) are deferred pending JBM credentials; the roadmap
+otherwise continues with whatever's scoped next. See
+[`docs/SCOPE.md`](docs/SCOPE.md) for the milestone plan,
+[`docs/schema/`](docs/schema/), [`docs/AUTH.md`](docs/AUTH.md),
+[`docs/MASTERS.md`](docs/MASTERS.md),
 [`docs/DOCUMENTS.md`](docs/DOCUMENTS.md),
 [`docs/INCIDENTS.md`](docs/INCIDENTS.md),
 [`docs/CLAIMS.md`](docs/CLAIMS.md), [`docs/TAT.md`](docs/TAT.md),
 [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md), [`docs/OCR.md`](docs/OCR.md),
 [`docs/ESCALATIONS.md`](docs/ESCALATIONS.md),
 [`docs/PAYMENTS.md`](docs/PAYMENTS.md), [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md),
-[`docs/RUNBOOK.md`](docs/RUNBOOK.md), and [`docs/openapi.yaml`](docs/openapi.yaml)
-for what's implemented so far, and [`docs/RULES.md`](docs/RULES.md) for
-the Business Rules / Process Rules the system is being built against.
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md), [`docs/openapi.yaml`](docs/openapi.yaml),
+and [`docs/UI_FOUNDATION.md`](docs/UI_FOUNDATION.md) for what's
+implemented so far, and [`docs/RULES.md`](docs/RULES.md) for the
+Business Rules / Process Rules the system is being built against.
 
 Try it locally: seed the dev database (`npm run db:seed`) and sign in at
 `/login` with `admin@jbm.example` / `ChangeMe123!` (dev-only credentials,
@@ -137,3 +146,6 @@ too, not just OCR's own tests.
 - [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — deploying beyond local docker-compose: the two runtime images, full env-var reference, migrations, health checks, scaling notes.
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — common day-2 ops tasks: seeding, restarting the worker, triggering an escalation scan, checking queue health, the audit trail, running the e2e smoke test.
 - [`docs/openapi.yaml`](docs/openapi.yaml) — OpenAPI 3.0 spec for the full `/api` surface, hand-maintained against the real route handlers.
+- [`docs/UI_FOUNDATION.md`](docs/UI_FOUNDATION.md) — the nav shell (sidebar + header), route-group restructuring, and the Claims Mitra design's tokens adopted app-wide.
+- [`docs/SEARCH.md`](docs/SEARCH.md) — global search: scope, the exact RBAC/depot-scoping reuse, and how it was verified.
+- [`docs/ADMIN_USERS.md`](docs/ADMIN_USERS.md) — user management: RBAC, password handling, the self-deactivation lock, and how session invalidation was verified live.

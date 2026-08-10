@@ -3,27 +3,44 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * M16: tokens adopted from the Claims Mitra UI design
+ * (docs/design/CM_FIM_System.dc.html) — see docs/UI_FOUNDATION.md. Mapped
+ * onto shadcn/ui's existing variable names so every component built in
+ * M1-M15 (Button, Input, Label, every card/table) picks up the new
+ * palette automatically, with no per-component edits.
+ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --radius: 0.875rem;
+  --background: #f7f5fc;
+  --foreground: #221b33;
+  --card: #ffffff;
+  --card-foreground: #221b33;
+  --popover: #ffffff;
+  --popover-foreground: #221b33;
+  --primary: #7f5feb;
+  --primary-foreground: #ffffff;
+  --secondary: #f2f0f8;
+  --secondary-foreground: #221b33;
+  --muted: #f2f0f8;
+  --muted-foreground: #55506b;
+  --accent: #efeafd;
+  --accent-foreground: #55349e;
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: #e4ddf5;
+  --input: #d3cbe8;
+  --ring: #7f5feb;
+
+  /* Status tags (TAT breach state, document validity, ...) — a distinct
+     palette from --destructive, which stays a true red for form/error
+     states so the two concerns don't collide visually. */
+  --status-green-bg: #e3f6ea;
+  --status-green-fg: #1e7f44;
+  --status-amber-bg: #fdf1dc;
+  --status-amber-fg: #9a6314;
+  --status-red-bg: #f5eafe;
+  --status-red-fg: #7e22ce;
 }
 
 .dark {
@@ -46,6 +63,8 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+  /* No dark-mode design exists yet — status tokens fall back to the
+     light-mode values above rather than being redefined speculatively. */
 }
 
 @theme inline {
@@ -72,7 +91,14 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --font-sans: var(--font-geist-sans);
+  --color-status-green-bg: var(--status-green-bg);
+  --color-status-green-fg: var(--status-green-fg);
+  --color-status-amber-bg: var(--status-amber-bg);
+  --color-status-amber-fg: var(--status-amber-fg);
+  --color-status-red-bg: var(--status-red-bg);
+  --color-status-red-fg: var(--status-red-fg);
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-poppins);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -87,5 +113,11 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-heading);
+    font-weight: 600;
   }
 }
