@@ -9,14 +9,16 @@ import type {
 } from "@/lib/generated/prisma/enums";
 
 // A document's access is governed by whatever it's linked to. M5 only
-// knew how to resolve that for VEHICLE and DRIVER; INCIDENT, CLAIM,
-// SURVEY, REPAIR_JOB, and SETTLEMENT (M19) each add a case below once
-// their owning module exists. POLICY still has no service layer, so it's
-// left out. The DocumentLink schema already supports linking to any of
-// these (see docs/schema/M2A.md); this is the resolution piece.
+// knew how to resolve that for VEHICLE and DRIVER; CLAIM, SURVEY,
+// REPAIR_JOB, and SETTLEMENT (M19), then INCIDENT (M21, the Incident
+// Detail Documents tab), each added a case below once their owning
+// module existed. POLICY still has no service layer, so it's left out.
+// The DocumentLink schema already supports linking to any of these (see
+// docs/schema/M2A.md); this is the resolution piece.
 export const SUPPORTED_LINK_TYPES = [
   "VEHICLE",
   "DRIVER",
+  "INCIDENT",
   "CLAIM",
   "SURVEY",
   "REPAIR_JOB",
@@ -30,6 +32,10 @@ export type SupportedLinkType = (typeof SUPPORTED_LINK_TYPES)[number];
 // reusing VEHICLE/DRIVER's ORG_ADMIN+DEPOT_MANAGER default, which has no
 // bearing on claim sub-records.
 const WRITE_ROLES_BY_ENTITY_TYPE: Partial<Record<LinkedEntityType, readonly UserRole[]>> = {
+  // Same as DEFAULT_WRITE_ROLES today (lib/incidents/incident.ts's own
+  // WRITE_ROLES) — listed explicitly so the mapping stays correct even
+  // if the two ever diverge, rather than relying on a coincidental match.
+  INCIDENT: ["ORG_ADMIN", "DEPOT_MANAGER"],
   CLAIM: ["ORG_ADMIN", "CLAIMS_MANAGER"],
   SURVEY: ["ORG_ADMIN", "CLAIMS_MANAGER", "SURVEYOR"],
   REPAIR_JOB: ["ORG_ADMIN", "CLAIMS_MANAGER", "WORKSHOP_COORDINATOR"],
@@ -54,6 +60,12 @@ async function resolveDepotId(
       where: { id: linkedEntityId },
     });
     return driver.depotId;
+  }
+  if (linkedEntityType === "INCIDENT") {
+    const incident = await db.incident.findUniqueOrThrow({
+      where: { id: linkedEntityId },
+    });
+    return incident.depotId;
   }
   // CLAIM/SURVEY/REPAIR_JOB/SETTLEMENT all resolve their depot the same
   // way: through the claim's incident (a sub-record has no depot of its

@@ -54,6 +54,31 @@ export interface BreachedStage {
   overdueHours: number;
 }
 
+// M21: Corporate Dashboard richness. "Pipeline funnel" isn't a new
+// concept — it's the same claimStatusCounts/incidentStatusCounts this
+// dashboard already computes, relabeled into the design's six named
+// stages (Assessment/Claim/Survey/Repair/Settlement/Payment). This is an
+// interpretive mapping, not a literal 1:1 with any stored field — flagged
+// in docs/DASHBOARDS.md rather than treated as an exact spec: Assessment
+// = still-OPEN incidents (not yet converted to a claim); Payment = claims
+// that reached SETTLED (money resolved, awaiting formal CLOSED).
+export interface PipelineFunnel {
+  assessment: number;
+  claim: number;
+  survey: number;
+  repair: number;
+  settlement: number;
+  payment: number;
+}
+
+export interface DepotPerformance {
+  depotId: string;
+  depotName: string;
+  openIncidents: number;
+  openClaims: number;
+  breachedStages: number;
+}
+
 export interface OperationalDashboard {
   depotId: string | null;
   incidentStatusCounts: Record<IncidentStatus, number>;
@@ -70,6 +95,14 @@ export interface OperationalDashboard {
     // export. See docs/DASHBOARDS.md.
     topBreached: BreachedStage[];
   };
+  pipelineFunnel: PipelineFunnel;
+  // Respects the same `depotId` filter as every other section here (M9's
+  // "one shared computation, narrowed by the same filter" rule, not a
+  // special case) — most useful unfiltered (every depot in the org); a
+  // depot-filtered dashboard, or a DEPOT_MANAGER's own fixed scope, both
+  // correctly collapse this to a one-row table rather than showing
+  // other depots' rows as misleading zeros.
+  depotPerformance: DepotPerformance[];
 }
 
 export interface DashboardFilter {
@@ -94,6 +127,7 @@ export async function getOperationalDashboard(
     openIncidents,
     openClaims,
     breachedStages,
+    depots,
   ] = await Promise.all([
     scoped.incident.groupBy({
       by: ["status"],
@@ -107,11 +141,11 @@ export async function getOperationalDashboard(
     }),
     scoped.incident.findMany({
       where: { ...incidentWhere, status: IncidentStatus.OPEN },
-      select: { reportedAt: true },
+      select: { reportedAt: true, depotId: true },
     }),
     scoped.claim.findMany({
       where: { ...claimWhere, status: { notIn: CLAIM_TERMINAL_STATUSES } },
-      select: { openedAt: true },
+      select: { openedAt: true, incident: { select: { depotId: true } } },
     }),
     // PR-02: an ON_HOLD stage's clock is paused, so it's deliberately
     // excluded here even if its (pre-hold) dueAt has passed — only an
@@ -129,8 +163,16 @@ export async function getOperationalDashboard(
             }
           : {}),
       },
-      include: { stageTemplate: true, incident: true, claim: true },
+      include: {
+        stageTemplate: true,
+        incident: true,
+        claim: { include: { incident: true } },
+      },
       orderBy: { dueAt: "asc" },
+    }),
+    scoped.depot.findMany({
+      where: depotId ? { id: depotId } : undefined,
+      select: { id: true, name: true },
     }),
   ]);
 
@@ -169,6 +211,47 @@ export async function getOperationalDashboard(
       overdueHours: (now.getTime() - stage.dueAt!.getTime()) / 3_600_000,
     }));
 
+  const pipelineFunnel: PipelineFunnel = {
+    assessment: incidentStatusCounts[IncidentStatus.OPEN],
+    claim: claimStatusCounts[ClaimStatus.OPEN],
+    survey: claimStatusCounts[ClaimStatus.UNDER_SURVEY],
+    repair: claimStatusCounts[ClaimStatus.UNDER_REPAIR],
+    settlement: claimStatusCounts[ClaimStatus.PENDING_SETTLEMENT],
+    payment: claimStatusCounts[ClaimStatus.SETTLED],
+  };
+
+  const depotPerformanceMap = new Map<string, DepotPerformance>(
+    depots.map((depot) => [
+      depot.id,
+      {
+        depotId: depot.id,
+        depotName: depot.name,
+        openIncidents: 0,
+        openClaims: 0,
+        breachedStages: 0,
+      },
+    ]),
+  );
+  for (const incident of openIncidents) {
+    const entry = depotPerformanceMap.get(incident.depotId);
+    if (entry) entry.openIncidents += 1;
+  }
+  for (const claim of openClaims) {
+    const entry = depotPerformanceMap.get(claim.incident.depotId);
+    if (entry) entry.openClaims += 1;
+  }
+  for (const stage of breachedStages) {
+    const stageDepotId =
+      stage.incident?.depotId ?? stage.claim?.incident.depotId;
+    const entry = stageDepotId
+      ? depotPerformanceMap.get(stageDepotId)
+      : undefined;
+    if (entry) entry.breachedStages += 1;
+  }
+  const depotPerformance = [...depotPerformanceMap.values()].sort((a, b) =>
+    a.depotName.localeCompare(b.depotName),
+  );
+
   return {
     depotId,
     incidentStatusCounts,
@@ -180,5 +263,7 @@ export async function getOperationalDashboard(
       claimStageCount: breachedStages.filter((s) => s.claimId).length,
       topBreached,
     },
+    pipelineFunnel,
+    depotPerformance,
   };
 }

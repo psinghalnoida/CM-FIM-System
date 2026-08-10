@@ -9,7 +9,7 @@ and payment.
 
 ## Status
 
-**M1–M9, M11, M13–M20** are done: app scaffold, Docker Compose, tooling,
+**M1–M9, M11, M13–M21** are done: app scaffold, Docker Compose, tooling,
 the full Phase 1 Prisma schema, credential login/logout with
 database-backed sessions, role gating and org-scoping,
 City/Depot/Vehicle/Driver CRUD with depot-scoped RBAC and audit logging, a
@@ -45,10 +45,15 @@ sub-record detail pages (Survey/Repair/Settlement/Payment as
 standalone, tabbed pages, plus the settlement domain correction — JBM
 records a *response* to the insurer's settlement offer, not an approval
 decision; no monetary approval ceiling exists anywhere in this system),
-and Claim Detail's Communication + Audit tabs (manually-entered
+Claim Detail's Communication + Audit tabs (manually-entered
 communication notes backed by the dormant `ActivityTimelineEvent` model,
-and an Audit tab reusing `AuditLog` directly).
-M21-M30, the rest of the UI-alignment milestones scoped from that
+and an Audit tab reusing `AuditLog` directly), and Incident List/Detail +
+Corporate Dashboard richness (CSV export and richer filters on the
+Incident List; Incident Detail as the design's 7-tab layout, with
+document-linking extended to incidents and two new `injuries`/
+`thirdPartyInvolved` fields; a pipeline funnel and per-depot performance
+breakdown added to the operational dashboard).
+M22-M30, the rest of the UI-alignment milestones scoped from that
 design, remain — see `docs/SCOPE.md`'s "UI/UX alignment" section. M10 (WhatsApp)
 and M12 (Telematics) are deferred pending JBM credentials; the roadmap
 otherwise continues with whatever's scoped next. See

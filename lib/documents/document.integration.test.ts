@@ -89,6 +89,10 @@ afterEach(async () => {
           linkedEntityType: "SETTLEMENT",
           linkedEntityId: { in: cleanup.settlementIds },
         },
+        {
+          linkedEntityType: "INCIDENT",
+          linkedEntityId: { in: cleanup.incidentIds },
+        },
       ],
     },
   });
@@ -545,7 +549,7 @@ async function seedOrgWithClaimSubRecords() {
   });
   cleanup.settlementIds.push(settlement.id);
 
-  return { org, depot, admin, claim, survey, repairJob, settlement };
+  return { org, depot, admin, incident, claim, survey, repairJob, settlement };
 }
 
 describe("Document linking to claim sub-records (M19)", () => {
@@ -697,5 +701,47 @@ describe("Document linking to claim sub-records (M19)", () => {
     });
 
     await expect(getDocument(outsideManager, document.id)).rejects.toThrow();
+  });
+});
+
+describe("Document linking to INCIDENT (M21)", () => {
+  it("ORG_ADMIN/DEPOT_MANAGER can upload an incident document; CLAIMS_MANAGER cannot", async () => {
+    const { org, depot, incident } = await seedOrgWithClaimSubRecords();
+    const manager = await userSessionWithRole(org, depot.id, "DEPOT_MANAGER");
+    const claimsManager = await userSessionWithRole(org, null, "CLAIMS_MANAGER");
+
+    const { uploadUrl, storageKey } = await presignDocumentUpload(manager, {
+      linkedEntityType: "INCIDENT",
+      linkedEntityId: incident.id,
+      fileName: "panchnama.pdf",
+    });
+    const putRes = await fetch(uploadUrl, { method: "PUT", body: "panchnama" });
+    expect(putRes.ok).toBe(true);
+
+    const document = await completeNewDocumentUpload(manager, {
+      storageKey,
+      fileName: "panchnama.pdf",
+      documentType: "OTHER",
+      title: "Police panchnama",
+      linkedEntityType: "INCIDENT",
+      linkedEntityId: incident.id,
+    });
+    expect(document.links[0].linkedEntityType).toBe("INCIDENT");
+
+    await expect(
+      presignDocumentUpload(claimsManager, {
+        linkedEntityType: "INCIDENT",
+        linkedEntityId: incident.id,
+        fileName: "x.pdf",
+      }),
+    ).rejects.toThrow();
+
+    const docsForIncident = await listDocumentsForEntity(manager, {
+      linkedEntityType: "INCIDENT",
+      linkedEntityId: incident.id,
+    });
+    expect(docsForIncident.map((d) => d.title)).toEqual([
+      "Police panchnama",
+    ]);
   });
 });

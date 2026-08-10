@@ -53,6 +53,30 @@ export default async function OperationalDashboardPage({
       )}
 
       <h2 className="mb-2 text-lg font-semibold tracking-tight">
+        Incident &amp; claim pipeline
+      </h2>
+      <div className="mb-6 flex flex-wrap gap-3 text-sm">
+        {(
+          [
+            ["Assessment", dashboard.pipelineFunnel.assessment],
+            ["Claim", dashboard.pipelineFunnel.claim],
+            ["Survey", dashboard.pipelineFunnel.survey],
+            ["Repair", dashboard.pipelineFunnel.repair],
+            ["Settlement", dashboard.pipelineFunnel.settlement],
+            ["Payment", dashboard.pipelineFunnel.payment],
+          ] as const
+        ).map(([label, count]) => (
+          <div
+            key={label}
+            className="border-border min-w-24 rounded-md border px-3 py-2 text-center"
+          >
+            <div className="text-lg font-semibold">{count}</div>
+            <div className="text-muted-foreground text-xs">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <h2 className="mb-2 text-lg font-semibold tracking-tight">
         Incident status
       </h2>
       <table className="mb-6 w-full text-left text-sm">
@@ -143,6 +167,40 @@ export default async function OperationalDashboardPage({
                 className="text-muted-foreground py-4 text-center"
               >
                 No active breaches.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      <h2 className="mt-8 mb-2 text-lg font-semibold tracking-tight">
+        Depot performance
+      </h2>
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-border border-b">
+            <th className="py-2">Depot</th>
+            <th className="py-2">Open incidents</th>
+            <th className="py-2">Open claims</th>
+            <th className="py-2">Breached stages</th>
+          </tr>
+        </thead>
+        <tbody>
+          {dashboard.depotPerformance.map((row) => (
+            <tr key={row.depotId} className="border-border border-b">
+              <td className="py-2">{row.depotName}</td>
+              <td className="py-2">{row.openIncidents}</td>
+              <td className="py-2">{row.openClaims}</td>
+              <td className="py-2">{row.breachedStages}</td>
+            </tr>
+          ))}
+          {dashboard.depotPerformance.length === 0 && (
+            <tr>
+              <td
+                colSpan={4}
+                className="text-muted-foreground py-4 text-center"
+              >
+                No depots in scope.
               </td>
             </tr>
           )}

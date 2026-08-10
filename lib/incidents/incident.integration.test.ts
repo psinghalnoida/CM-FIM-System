@@ -271,6 +271,30 @@ describe("updateIncident", () => {
       }),
     ).rejects.toThrow();
   });
+
+  it("M21: sets injuries/thirdPartyInvolved, both optional and independently updatable", async () => {
+    const { org, vehicleA } = await seedOrgWithTwoDepotsAndVehicles();
+    const admin = await userSessionWithRole(org, null, "ORG_ADMIN");
+
+    const incident = await createIncident(admin, {
+      vehicleId: vehicleA.id,
+      incidentDateTime: new Date(),
+      incidentType: "ACCIDENT",
+      description: "Test.",
+    });
+    track(incident.id);
+    expect(incident.injuries).toBeNull();
+    expect(incident.thirdPartyInvolved).toBeNull();
+
+    const updated = await updateIncident(admin, incident.id, {
+      injuries: "Minor bruising, driver, treated on-site.",
+      thirdPartyInvolved: true,
+    });
+    expect(updated.injuries).toBe(
+      "Minor bruising, driver, treated on-site.",
+    );
+    expect(updated.thirdPartyInvolved).toBe(true);
+  });
 });
 
 describe("close/reopen", () => {
@@ -359,5 +383,53 @@ describe("reads", () => {
 
     const openOnly = await listIncidents(admin, { status: "OPEN" });
     expect(openOnly.map((i) => i.id)).toEqual([incidentB.id]);
+  });
+
+  it("M21: filters by severity/incidentType/depotId/date range; a DEPOT_MANAGER filtering by another depot gets an empty list, not a bypass", async () => {
+    const { org, depotA, depotB, vehicleA, vehicleB } =
+      await seedOrgWithTwoDepotsAndVehicles();
+    const admin = await userSessionWithRole(org, null, "ORG_ADMIN");
+    const managerA = await userSessionWithRole(org, depotA.id, "DEPOT_MANAGER");
+
+    const incidentA = await createIncident(admin, {
+      vehicleId: vehicleA.id,
+      incidentDateTime: new Date("2026-01-15"),
+      incidentType: "ACCIDENT",
+      severity: "HIGH",
+      description: "A",
+    });
+    track(incidentA.id);
+    const incidentB = await createIncident(admin, {
+      vehicleId: vehicleB.id,
+      incidentDateTime: new Date("2026-06-01"),
+      incidentType: "THEFT",
+      severity: "LOW",
+      description: "B",
+    });
+    track(incidentB.id);
+
+    expect(
+      (await listIncidents(admin, { severity: "HIGH" })).map((i) => i.id),
+    ).toEqual([incidentA.id]);
+    expect(
+      (await listIncidents(admin, { incidentType: "THEFT" })).map(
+        (i) => i.id,
+      ),
+    ).toEqual([incidentB.id]);
+    expect(
+      (await listIncidents(admin, { depotId: depotB.id })).map((i) => i.id),
+    ).toEqual([incidentB.id]);
+    expect(
+      (
+        await listIncidents(admin, {
+          dateFrom: new Date("2026-01-01"),
+          dateTo: new Date("2026-03-01"),
+        })
+      ).map((i) => i.id),
+    ).toEqual([incidentA.id]);
+
+    // depotA is managerA's own scope — asking for depotB explicitly
+    // doesn't leak depotB's data, it's just empty.
+    expect(await listIncidents(managerA, { depotId: depotB.id })).toEqual([]);
   });
 });
