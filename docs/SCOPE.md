@@ -195,12 +195,7 @@ M1–M15, no exceptions for being UI-focused.
 | M27 | **Administration: Master Data** | Turns free-text `surveyorName`/`workshopName`/insurer names into real, manageable master entities (Insurer/Broker/Surveyor/Workshop). Real schema migration — **needs a backfill plan** for every existing free-text value, not just new tables. | M16, M18 |
 | M28 | **Vehicle Detail (tabbed profile)** | The design's 8-tab vehicle page. Information/Status/Incident-Claim-Repair history are queries against existing data. Warranty needs a new model — business terms (provider, coverage, validity) undefined, needs its own scoping question when this milestone starts. Telematics tab stays a placeholder pending M12. | M16 |
 | M29 | **Administration: Integration Settings** | Status view of WhatsApp/Telematics/OCR/Email adapters. Needs a real "is this configured and reachable" check, not just echoing env vars — pair with closing `docs/DEPLOYMENT.md`'s flagged `/api/health` gap, same underlying check. | M16, M10/M12 (for real status, not just OCR/Email) |
-
-**Deliberately not scoped above: the "Mitra" AI chat assistant.** It needs
-its own conversation before any milestone number is assigned — which
-model, what it's allowed to see/do (tool-calling against live claims
-data has real access-control implications), and cost. Not something to
-back into via a UI milestone.
+| M30 | **"Mitra" AI assistant** | Read-only Q&A over live fleet/incident/claim data via the chat widget in M16's shell. `AssistantProvider` adapter (same pattern as `OCRProvider`/`EmailProvider`) — default unset resolves to a real deterministic stub (no API calls, no key needed); `ASSISTANT_PROVIDER=claude` + `ANTHROPIC_API_KEY` for the real thing, fails closed on an unrecognized provider name. Mitra calls a small fixed set of read-only tool functions, each wrapping an existing service-layer query with the asking user's real `AuthSession` — so `scopedDb()`/RBAC apply exactly as everywhere else, no parallel access model. Never writes anything; conversation history stays client-side/ephemeral for v1, not persisted. Usage logging and rate-limiting deliberately left as open questions, not built speculatively. | M16 |
 
 Sequencing note: M16 is the one hard prerequisite for everything else in
 this list (every other screen sits inside its shell). Beyond that, M17
@@ -237,11 +232,22 @@ interface TelematicsProvider {
 interface EmailProvider {
   send(message: { to: string[]; subject: string; html: string; attachments?: StorageRef[] }): Promise<void>;
 }
+
+// M30 — read-only Q&A only; tools are existing service-layer queries
+// called with the asking user's real AuthSession, so scopedDb()/RBAC
+// apply exactly as everywhere else. Never a write path.
+interface AssistantProvider {
+  chat(
+    session: AuthSession,
+    messages: Array<{ role: "user" | "assistant"; content: string }>,
+    tools: AssistantTool[],
+  ): Promise<{ reply: string; toolCalls: Array<{ name: string; args: unknown; result: unknown }> }>;
+}
 ```
 
-All four are resolved via env-based config (`WHATSAPP_PROVIDER`,
-`OCR_PROVIDER`, `TELEMATICS_PROVIDER`, `EMAIL_PROVIDER`) — never hardcoded
-imports in domain code, so a provider swap is a config change plus a new
+All five are resolved via env-based config (`WHATSAPP_PROVIDER`,
+`OCR_PROVIDER`, `TELEMATICS_PROVIDER`, `EMAIL_PROVIDER`, `ASSISTANT_PROVIDER`)
+— never hardcoded imports in domain code, so a provider swap is a config change plus a new
 adapter class.
 
 ---
