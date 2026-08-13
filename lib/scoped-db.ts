@@ -34,6 +34,10 @@ export const ORG_SCOPED_MODELS = [
   "Settlement",
   "IdCounter",
   "AuditLog",
+  "Insurer",
+  "Broker",
+  "Surveyor",
+  "Workshop",
 ] as const;
 
 type OrgScopedModel = (typeof ORG_SCOPED_MODELS)[number];

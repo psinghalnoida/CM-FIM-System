@@ -22,7 +22,9 @@ const cleanup = {
   templateIds: [] as string[],
   settlementIds: [] as string[],
   repairJobIds: [] as string[],
+  workshopIds: [] as string[],
   surveyIds: [] as string[],
+  surveyorIds: [] as string[],
   claimIds: [] as string[],
   incidentIds: [] as string[],
   vehicleIds: [] as string[],
@@ -43,7 +45,9 @@ afterEach(async () => {
   await db.payment.deleteMany({ where: { settlementId: { in: cleanup.settlementIds } } });
   await db.settlement.deleteMany({ where: { id: { in: cleanup.settlementIds } } });
   await db.repairJob.deleteMany({ where: { id: { in: cleanup.repairJobIds } } });
+  await db.workshop.deleteMany({ where: { id: { in: cleanup.workshopIds } } });
   await db.survey.deleteMany({ where: { id: { in: cleanup.surveyIds } } });
+  await db.surveyor.deleteMany({ where: { id: { in: cleanup.surveyorIds } } });
   await db.claim.deleteMany({ where: { id: { in: cleanup.claimIds } } });
   await db.incident.deleteMany({ where: { id: { in: cleanup.incidentIds } } });
   await db.vehicle.deleteMany({ where: { id: { in: cleanup.vehicleIds } } });
@@ -54,7 +58,9 @@ afterEach(async () => {
   cleanup.templateIds = [];
   cleanup.settlementIds = [];
   cleanup.repairJobIds = [];
+  cleanup.workshopIds = [];
   cleanup.surveyIds = [];
+  cleanup.surveyorIds = [];
   cleanup.claimIds = [];
   cleanup.incidentIds = [];
   cleanup.vehicleIds = [];
@@ -176,14 +182,22 @@ describe("getMyWork (M26)", () => {
       claimType: "INSURANCE",
     });
     cleanup.claimIds.push(claim1.id);
+    const surveyor = await db.surveyor.create({
+      data: { organizationId: org.id, name: unique("Surveyor") },
+    });
+    cleanup.surveyorIds.push(surveyor.id);
     const survey1 = await createSurvey(admin, {
       claimId: claim1.id,
-      surveyorName: "Test Surveyor",
+      surveyorId: surveyor.id,
     });
     cleanup.surveyIds.push(survey1.id);
+    const workshop = await db.workshop.create({
+      data: { organizationId: org.id, name: unique("Workshop") },
+    });
+    cleanup.workshopIds.push(workshop.id);
     const repairJob1 = await createRepairJob(admin, {
       claimId: claim1.id,
-      workshopName: "Test Workshop",
+      workshopId: workshop.id,
     });
     cleanup.repairJobIds.push(repairJob1.id);
     // Stays PENDING — the "open settlement" item.
@@ -232,15 +246,19 @@ describe("getMyWork (M26)", () => {
     expect(claimsWork.items.find((i) => i.kind === "CLAIM")?.id).toBe(claim1.id);
 
     // --- SURVEYOR: only survey1. ---
-    const surveyor = await userSessionWithRole(org, null, "SURVEYOR");
-    const surveyorWork = await getMyWork(surveyor);
+    const surveyorSession = await userSessionWithRole(org, null, "SURVEYOR");
+    const surveyorWork = await getMyWork(surveyorSession);
     expect(surveyorWork.items).toHaveLength(1);
     expect(surveyorWork.items[0].kind).toBe("SURVEY");
     expect(surveyorWork.items[0].id).toBe(survey1.id);
 
     // --- WORKSHOP_COORDINATOR: only repairJob1. ---
-    const workshop = await userSessionWithRole(org, null, "WORKSHOP_COORDINATOR");
-    const workshopWork = await getMyWork(workshop);
+    const workshopSession = await userSessionWithRole(
+      org,
+      null,
+      "WORKSHOP_COORDINATOR",
+    );
+    const workshopWork = await getMyWork(workshopSession);
     expect(workshopWork.items).toHaveLength(1);
     expect(workshopWork.items[0].kind).toBe("REPAIR_JOB");
     expect(workshopWork.items[0].id).toBe(repairJob1.id);

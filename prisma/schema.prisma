@@ -74,6 +74,10 @@ model Organization {
   escalationRules    EscalationRule[]
   escalationEvents   EscalationEvent[]
   settlements        Settlement[]
+  insurers           Insurer[]
+  brokers            Broker[]
+  surveyors          Surveyor[]
+  workshops          Workshop[]
 
   @@map("organizations")
 }
@@ -157,7 +161,7 @@ model User {
   timelineEvents            ActivityTimelineEvent[] @relation("ActivityTimelineEventActor")
   auditLogEntries           AuditLog[]              @relation("AuditLogActor")
   assignedClaims            Claim[]                 @relation("ClaimAssignedTo")
-  conductedSurveys          Survey[]                @relation("SurveySurveyorUser")
+  linkedSurveyorProfiles    Surveyor[]              @relation("SurveyorLinkedUser")
   workshopActivities        WorkshopActivity[]      @relation("WorkshopActivityActor")
   createdTatHoldPeriods     TatHoldPeriod[]         @relation("TatHoldPeriodCreatedBy")
   notifiedByEscalationRules EscalationRule[]        @relation("EscalationRuleNotifyUser")
@@ -273,6 +277,45 @@ enum PolicyStatus {
   CANCELLED
 }
 
+// M27: master data — formalizes what was free text (InsurancePolicy.
+// insurerName) into a real, admin-managed entity. See docs/MASTERS.md's
+// M27 section for the backfill plan (existing distinct insurerName
+// values become Insurer rows; insurerId then replaces insurerName
+// outright, not alongside it).
+model Insurer {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  policies InsurancePolicy[]
+
+  @@unique([organizationId, name])
+  @@map("insurers")
+}
+
+// M27: unlike Insurer/Surveyor/Workshop, nothing in this schema
+// referenced a broker before this milestone — no free text to migrate,
+// no existing gap. Added because the design's Master Data screen lists
+// it; attaches to InsurancePolicy (the natural place — a broker
+// facilitates a policy) as an optional field, since not every policy
+// goes through one.
+model Broker {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  policies InsurancePolicy[]
+
+  @@unique([organizationId, name])
+  @@map("brokers")
+}
+
 model InsurancePolicy {
   id                String       @id @default(uuid())
   organizationId    String
@@ -283,7 +326,11 @@ model InsurancePolicy {
   vehicleId         String
   vehicle           Vehicle      @relation(fields: [vehicleId], references: [id])
   policyNumber      String
-  insurerName       String
+  insurerId         String
+  insurer           Insurer      @relation(fields: [insurerId], references: [id])
+  // Optional — not every policy is placed through a broker.
+  brokerId          String?
+  broker            Broker?      @relation(fields: [brokerId], references: [id])
   policyType        PolicyType   @default(COMPREHENSIVE)
   coverageStartDate DateTime
   coverageEndDate   DateTime
@@ -633,28 +680,51 @@ enum SurveyStatus {
   CANCELLED
 }
 
+// M27: master data — formalizes what was free text (Survey.surveyorName/
+// surveyorContact/surveyorUserId) into a real, admin-managed entity.
+// Surveyors are often external agency reps, not app Users — contact info
+// is always captured on the Surveyor row itself now (was per-Survey
+// before, duplicated across every survey the same person did);
+// linkedUserId is set only when they're internal, moved here from
+// Survey.surveyorUserId for the same reason — "is this an internal
+// user" is a property of the surveyor, not of one particular survey.
+// See docs/MASTERS.md's M27 section for the backfill plan.
+model Surveyor {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  contact        String?
+  linkedUserId   String?
+  linkedUser     User?        @relation("SurveyorLinkedUser", fields: [linkedUserId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  surveys Survey[]
+
+  @@unique([organizationId, name])
+  @@map("surveyors")
+}
+
 model Survey {
-  id              String       @id @default(uuid())
-  organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id])
-  surveyNumber    String // human-readable, e.g. SUR-2026-000001 (see IdCounter)
-  claimId         String
-  claim           Claim        @relation(fields: [claimId], references: [id])
-  // Surveyors are often external agency reps, not app Users — surveyorName
-  // is always captured; surveyorUserId is set only when they're internal.
-  surveyorName    String
-  surveyorContact String?
-  surveyorUserId  String?
-  surveyorUser    User?        @relation("SurveySurveyorUser", fields: [surveyorUserId], references: [id])
-  status          SurveyStatus @default(SCHEDULED)
-  scheduledAt     DateTime?
-  conductedAt     DateTime?
-  findings        String?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  surveyNumber   String // human-readable, e.g. SUR-2026-000001 (see IdCounter)
+  claimId        String
+  claim          Claim        @relation(fields: [claimId], references: [id])
+  surveyorId     String
+  surveyor       Surveyor     @relation(fields: [surveyorId], references: [id])
+  status         SurveyStatus @default(SCHEDULED)
+  scheduledAt    DateTime?
+  conductedAt    DateTime?
+  findings       String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   @@unique([organizationId, surveyNumber])
   @@index([claimId])
+  @@index([surveyorId])
   @@map("surveys")
 }
 
@@ -670,31 +740,52 @@ enum RepairJobStatus {
   CANCELLED
 }
 
+// M27: master data — formerly free text on RepairJob (workshopName/
+// workshopContact/workshopAddress), same reasoning as Surveyor above:
+// contact/address are properties of the workshop itself, not
+// re-entered per repair job. Was Phase-1 free text deliberately — see
+// docs/schema/M2B.md's original note — formalized here once the design
+// actually asked for a Master Data screen managing it. See
+// docs/MASTERS.md's M27 section for the backfill plan.
+model Workshop {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  contact        String?
+  address        String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  repairJobs RepairJob[]
+
+  @@unique([organizationId, name])
+  @@map("workshops")
+}
+
 model RepairJob {
-  id              String          @id @default(uuid())
-  organizationId  String
-  organization    Organization    @relation(fields: [organizationId], references: [id])
-  claimId         String
-  claim           Claim           @relation(fields: [claimId], references: [id])
-  // Free-text for Phase 1 rather than a Workshop master table — see
-  // docs/schema/M2B.md for why.
-  workshopName    String
-  workshopContact String?
-  workshopAddress String?
-  estimatedCost   Decimal?        @db.Decimal(14, 2)
-  approvedCost    Decimal?        @db.Decimal(14, 2)
-  actualCost      Decimal?        @db.Decimal(14, 2)
-  currency        String          @default("INR") @db.Char(3)
-  status          RepairJobStatus @default(ESTIMATE_PENDING)
-  startDate       DateTime?
-  endDate         DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id             String          @id @default(uuid())
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  claimId        String
+  claim          Claim           @relation(fields: [claimId], references: [id])
+  workshopId     String
+  workshop       Workshop        @relation(fields: [workshopId], references: [id])
+  estimatedCost  Decimal?        @db.Decimal(14, 2)
+  approvedCost   Decimal?        @db.Decimal(14, 2)
+  actualCost     Decimal?        @db.Decimal(14, 2)
+  currency       String          @default("INR") @db.Char(3)
+  status         RepairJobStatus @default(ESTIMATE_PENDING)
+  startDate      DateTime?
+  endDate        DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   activities WorkshopActivity[]
   parts      RepairPart[]
 
   @@index([claimId])
+  @@index([workshopId])
   @@map("repair_jobs")
 }
 

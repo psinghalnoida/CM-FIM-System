@@ -9,7 +9,7 @@ and payment.
 
 ## Status
 
-**M1–M9, M11, M13–M26** are done: app scaffold, Docker Compose, tooling,
+**M1–M9, M11, M13–M27** are done: app scaffold, Docker Compose, tooling,
 the full Phase 1 Prisma schema, credential login/logout with
 database-backed sessions, role gating and org-scoping,
 City/Depot/Vehicle/Driver CRUD with depot-scoped RBAC and audit logging, a
@@ -65,8 +65,13 @@ aggregation definitions rather than second-guessing them), a Fleet
 Dashboard (fleet-wide KPIs plus a filterable vehicle list), and My Work
 (a personalized "needs your action" view scoped to the caller's role,
 reusing each module's own RBAC/status definitions instead of inventing
-a new per-user assignment concept).
-M27-M30, the rest of the UI-alignment milestones scoped from that
+a new per-user assignment concept), and Administration: Master Data (four
+new entities — Insurer/Broker/Surveyor/Workshop — replacing what was
+free text on InsurancePolicy/Survey/RepairJob, via a real schema
+migration with a real backfill of every pre-existing value; Survey/
+Repair-job creation now picks from master data instead of typing a
+name).
+M28-M30, the rest of the UI-alignment milestones scoped from that
 design, remain — see `docs/SCOPE.md`'s "UI/UX alignment" section. M10 (WhatsApp)
 and M12 (Telematics) are deferred pending JBM credentials; the roadmap
 otherwise continues with whatever's scoped next. See
@@ -159,7 +164,7 @@ too, not just OCR's own tests.
 - [`docs/RULES.md`](docs/RULES.md) — Business Rules and Process Rules, each with a reason, kept current as modules are scoped.
 - [`docs/schema/`](docs/schema/) — per-milestone database schema documentation (ER diagrams, design rationale).
 - [`docs/AUTH.md`](docs/AUTH.md) — auth/session/RBAC/org-scoping design and how it was verified.
-- [`docs/MASTERS.md`](docs/MASTERS.md) — vehicle/depot/driver master data: who can do what, and why.
+- [`docs/MASTERS.md`](docs/MASTERS.md) — vehicle/depot/driver master data (who can do what, and why) plus M27's Insurer/Broker/Surveyor/Workshop master data and its backfill plan.
 - [`docs/DOCUMENTS.md`](docs/DOCUMENTS.md) — document repository: the presigned-upload flow and how it was verified.
 - [`docs/INCIDENTS.md`](docs/INCIDENTS.md) — incident workflow, evidence attachment, and two real bugs found and fixed while building it.
 - [`docs/CLAIMS.md`](docs/CLAIMS.md) — claim workflow, BR-05 policy auto-selection, surveys, workshop/repair jobs, and how it was verified.

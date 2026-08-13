@@ -19,6 +19,7 @@ beforeAll(() => {
 const cleanup = {
   templateIds: [] as string[],
   repairJobIds: [] as string[],
+  workshopIds: [] as string[],
   claimIds: [] as string[],
   incidentIds: [] as string[],
   vehicleIds: [] as string[],
@@ -37,6 +38,7 @@ afterEach(async () => {
   await db.caseStageInstance.deleteMany({ where: { organizationId: { in: cleanup.orgIds } } });
   await db.tatStageTemplate.deleteMany({ where: { id: { in: cleanup.templateIds } } });
   await db.repairJob.deleteMany({ where: { id: { in: cleanup.repairJobIds } } });
+  await db.workshop.deleteMany({ where: { id: { in: cleanup.workshopIds } } });
   await db.claim.deleteMany({ where: { id: { in: cleanup.claimIds } } });
   await db.incident.deleteMany({ where: { id: { in: cleanup.incidentIds } } });
   await db.vehicle.deleteMany({ where: { id: { in: cleanup.vehicleIds } } });
@@ -46,6 +48,7 @@ afterEach(async () => {
   await db.organization.deleteMany({ where: { id: { in: cleanup.orgIds } } });
   cleanup.templateIds = [];
   cleanup.repairJobIds = [];
+  cleanup.workshopIds = [];
   cleanup.claimIds = [];
   cleanup.incidentIds = [];
   cleanup.vehicleIds = [];
@@ -218,9 +221,13 @@ describe("getMisReport (M24)", () => {
     });
     cleanup.claimIds.push(claimForRepair.id);
     const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    const workshop = await db.workshop.create({
+      data: { organizationId: admin.user.organizationId, name: unique("Workshop") },
+    });
+    cleanup.workshopIds.push(workshop.id);
     const repairJob = await createRepairJob(admin, {
       claimId: claimForRepair.id,
-      workshopName: "Test Workshop",
+      workshopId: workshop.id,
       startDate: tenDaysAgo,
     });
     cleanup.repairJobIds.push(repairJob.id);

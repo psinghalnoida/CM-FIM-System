@@ -258,10 +258,10 @@ export async function getClaim(session: AuthSession, id: string) {
     where: { id },
     include: {
       incident: true,
-      policy: true,
+      policy: { include: { insurer: true, broker: true } },
       assignedTo: true,
-      surveys: true,
-      repairJobs: true,
+      surveys: { include: { surveyor: true } },
+      repairJobs: { include: { workshop: true } },
     },
   });
   if (!claim) return null;

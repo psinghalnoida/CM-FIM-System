@@ -22,6 +22,7 @@ beforeAll(() => {
 
 const cleanup = {
   surveyIds: [] as string[],
+  surveyorIds: [] as string[],
   claimIds: [] as string[],
   incidentIds: [] as string[],
   vehicleIds: [] as string[],
@@ -39,6 +40,7 @@ afterEach(async () => {
     where: { organizationId: { in: cleanup.orgIds } },
   });
   await db.survey.deleteMany({ where: { id: { in: cleanup.surveyIds } } });
+  await db.surveyor.deleteMany({ where: { id: { in: cleanup.surveyorIds } } });
   await db.claim.deleteMany({ where: { id: { in: cleanup.claimIds } } });
   await db.incident.deleteMany({ where: { id: { in: cleanup.incidentIds } } });
   await db.vehicle.deleteMany({ where: { id: { in: cleanup.vehicleIds } } });
@@ -47,6 +49,7 @@ afterEach(async () => {
   await db.city.deleteMany({ where: { id: { in: cleanup.cityIds } } });
   await db.organization.deleteMany({ where: { id: { in: cleanup.orgIds } } });
   cleanup.surveyIds = [];
+  cleanup.surveyorIds = [];
   cleanup.claimIds = [];
   cleanup.incidentIds = [];
   cleanup.vehicleIds = [];
@@ -114,7 +117,11 @@ async function seedOrgWithClaim() {
     claimType: "MAINTENANCE",
   });
   cleanup.claimIds.push(claim.id);
-  return { org, depotA, depotB, claim, admin };
+  const surveyor = await db.surveyor.create({
+    data: { organizationId: org.id, name: unique("Surveyor") },
+  });
+  cleanup.surveyorIds.push(surveyor.id);
+  return { org, depotA, depotB, claim, admin, surveyor };
 }
 
 async function userSessionWithRole(
@@ -149,11 +156,11 @@ function track(surveyId: string) {
 
 describe("createSurvey", () => {
   it("generates SUR-YYYY-###### and records a CREATE audit entry", async () => {
-    const { claim, admin } = await seedOrgWithClaim();
+    const { claim, admin, surveyor } = await seedOrgWithClaim();
 
     const survey = await createSurvey(admin, {
       claimId: claim.id,
-      surveyorName: "Jane Surveyor",
+      surveyorId: surveyor.id,
     });
     track(survey.id);
 
@@ -167,13 +174,13 @@ describe("createSurvey", () => {
   });
 
   it("SURVEYOR can create surveys; DEPOT_MANAGER cannot", async () => {
-    const { org, depotA, claim } = await seedOrgWithClaim();
-    const surveyor = await userSessionWithRole(org, null, "SURVEYOR");
+    const { org, depotA, claim, surveyor } = await seedOrgWithClaim();
+    const surveyorSession = await userSessionWithRole(org, null, "SURVEYOR");
     const managerA = await userSessionWithRole(org, depotA.id, "DEPOT_MANAGER");
 
-    const survey = await createSurvey(surveyor, {
+    const survey = await createSurvey(surveyorSession, {
       claimId: claim.id,
-      surveyorName: "Agency Rep",
+      surveyorId: surveyor.id,
     });
     track(survey.id);
     expect(survey.id).toBeDefined();
@@ -181,19 +188,19 @@ describe("createSurvey", () => {
     await expect(
       createSurvey(managerA, {
         claimId: claim.id,
-        surveyorName: "Should fail",
+        surveyorId: surveyor.id,
       }),
     ).rejects.toThrow();
   });
 
   it("rejects a DEPOT_MANAGER from a different depot", async () => {
-    const { org, depotB, claim } = await seedOrgWithClaim();
+    const { org, depotB, claim, surveyor } = await seedOrgWithClaim();
     const managerB = await userSessionWithRole(org, depotB.id, "DEPOT_MANAGER");
 
     await expect(
       createSurvey(managerB, {
         claimId: claim.id,
-        surveyorName: "Wrong depot",
+        surveyorId: surveyor.id,
       }),
     ).rejects.toThrow();
   });
@@ -201,10 +208,10 @@ describe("createSurvey", () => {
 
 describe("updateSurvey", () => {
   it("updates findings and records an UPDATE audit entry", async () => {
-    const { claim, admin } = await seedOrgWithClaim();
+    const { claim, admin, surveyor } = await seedOrgWithClaim();
     const survey = await createSurvey(admin, {
       claimId: claim.id,
-      surveyorName: "Jane Surveyor",
+      surveyorId: surveyor.id,
     });
     track(survey.id);
 
@@ -222,10 +229,10 @@ describe("updateSurvey", () => {
 
 describe("transitionSurveyStatus", () => {
   it("walks SCHEDULED -> IN_PROGRESS -> COMPLETED", async () => {
-    const { claim, admin } = await seedOrgWithClaim();
+    const { claim, admin, surveyor } = await seedOrgWithClaim();
     const survey = await createSurvey(admin, {
       claimId: claim.id,
-      surveyorName: "Jane Surveyor",
+      surveyorId: surveyor.id,
     });
     track(survey.id);
     expect(survey.status).toBe("SCHEDULED");
@@ -245,10 +252,10 @@ describe("transitionSurveyStatus", () => {
   });
 
   it("rejects a transition out of a terminal status (409)", async () => {
-    const { claim, admin } = await seedOrgWithClaim();
+    const { claim, admin, surveyor } = await seedOrgWithClaim();
     const survey = await createSurvey(admin, {
       claimId: claim.id,
-      surveyorName: "Jane Surveyor",
+      surveyorId: surveyor.id,
     });
     track(survey.id);
 
@@ -261,13 +268,13 @@ describe("transitionSurveyStatus", () => {
 
 describe("listSurveysForClaim", () => {
   it("is depot-scoped for DEPOT_MANAGER via the claim's incident", async () => {
-    const { org, depotA, depotB, claim, admin } = await seedOrgWithClaim();
+    const { org, depotA, depotB, claim, admin, surveyor } = await seedOrgWithClaim();
     const managerA = await userSessionWithRole(org, depotA.id, "DEPOT_MANAGER");
     const managerB = await userSessionWithRole(org, depotB.id, "DEPOT_MANAGER");
 
     const survey = await createSurvey(admin, {
       claimId: claim.id,
-      surveyorName: "Jane Surveyor",
+      surveyorId: surveyor.id,
     });
     track(survey.id);
 

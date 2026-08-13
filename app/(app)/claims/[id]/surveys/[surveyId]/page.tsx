@@ -62,9 +62,9 @@ export default async function SurveyDetailPage({
           <dt className="text-muted-foreground">Status</dt>
           <dd>{survey.status}</dd>
           <dt className="text-muted-foreground">Surveyor</dt>
-          <dd>{survey.surveyorName}</dd>
+          <dd>{survey.surveyor.name}</dd>
           <dt className="text-muted-foreground">Contact</dt>
-          <dd>{survey.surveyorContact ?? "—"}</dd>
+          <dd>{survey.surveyor.contact ?? "—"}</dd>
           <dt className="text-muted-foreground">Scheduled</dt>
           <dd>
             {survey.scheduledAt

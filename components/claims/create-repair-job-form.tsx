@@ -6,7 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function CreateRepairJobForm({ claimId }: { claimId: string }) {
+// M27: workshopName/workshopContact free-text inputs replaced with a
+// dropdown of Workshop master-data rows — see docs/MASTERS.md's M27
+// section. Same "no workshops yet" handling as CreateSurveyForm.
+export function CreateRepairJobForm({
+  claimId,
+  workshops,
+}: {
+  claimId: string;
+  workshops: { id: string; name: string }[];
+}) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,9 +26,7 @@ export function CreateRepairJobForm({ claimId }: { claimId: string }) {
     const formData = new FormData(event.currentTarget);
     const estimatedCost = formData.get("estimatedCost");
     const body = {
-      workshopName: String(formData.get("workshopName") ?? ""),
-      workshopContact:
-        String(formData.get("workshopContact") ?? "") || undefined,
+      workshopId: String(formData.get("workshopId") ?? ""),
       estimatedCost: estimatedCost ? Number(estimatedCost) : undefined,
     };
 
@@ -45,21 +52,36 @@ export function CreateRepairJobForm({ claimId }: { claimId: string }) {
     }
   }
 
+  if (workshops.length === 0) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        No workshops configured yet — an ORG_ADMIN adds them under
+        Administration &gt; Master Data before a repair job can be opened.
+      </p>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1">
-          <Label htmlFor="workshopName">Workshop</Label>
-          <Input
-            id="workshopName"
-            name="workshopName"
+          <Label htmlFor="workshopId">Workshop</Label>
+          <select
+            id="workshopId"
+            name="workshopId"
             required
-            maxLength={200}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="workshopContact">Contact (optional)</Label>
-          <Input id="workshopContact" name="workshopContact" maxLength={100} />
+            defaultValue=""
+            className="border-input bg-background h-9 w-full rounded-md border px-2 text-sm"
+          >
+            <option value="" disabled>
+              Select a workshop…
+            </option>
+            {workshops.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="space-y-1">
           <Label htmlFor="estimatedCost">Estimated cost (optional)</Label>

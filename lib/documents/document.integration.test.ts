@@ -60,7 +60,9 @@ const cleanup = {
   incidentIds: [] as string[],
   claimIds: [] as string[],
   surveyIds: [] as string[],
+  surveyorIds: [] as string[],
   repairJobIds: [] as string[],
+  workshopIds: [] as string[],
   settlementIds: [] as string[],
   userIds: [] as string[],
   depotIds: [] as string[],
@@ -117,9 +119,11 @@ afterEach(async () => {
     where: { id: { in: cleanup.settlementIds } },
   });
   await db.survey.deleteMany({ where: { id: { in: cleanup.surveyIds } } });
+  await db.surveyor.deleteMany({ where: { id: { in: cleanup.surveyorIds } } });
   await db.repairJob.deleteMany({
     where: { id: { in: cleanup.repairJobIds } },
   });
+  await db.workshop.deleteMany({ where: { id: { in: cleanup.workshopIds } } });
   await db.idCounter.deleteMany({
     where: { organizationId: { in: cleanup.orgIds } },
   });
@@ -134,7 +138,9 @@ afterEach(async () => {
   cleanup.incidentIds = [];
   cleanup.claimIds = [];
   cleanup.surveyIds = [];
+  cleanup.surveyorIds = [];
   cleanup.repairJobIds = [];
+  cleanup.workshopIds = [];
   cleanup.settlementIds = [];
   cleanup.userIds = [];
   cleanup.depotIds = [];
@@ -530,14 +536,22 @@ async function seedOrgWithClaimSubRecords() {
     claimType: "INSURANCE",
   });
   cleanup.claimIds.push(claim.id);
+  const surveyor = await db.surveyor.create({
+    data: { organizationId: org.id, name: unique("Surveyor") },
+  });
+  cleanup.surveyorIds.push(surveyor.id);
   const survey = await createSurvey(admin, {
     claimId: claim.id,
-    surveyorName: "Test Surveyor",
+    surveyorId: surveyor.id,
   });
   cleanup.surveyIds.push(survey.id);
+  const workshop = await db.workshop.create({
+    data: { organizationId: org.id, name: unique("Workshop") },
+  });
+  cleanup.workshopIds.push(workshop.id);
   const repairJob = await createRepairJob(admin, {
     claimId: claim.id,
-    workshopName: "Test Workshop",
+    workshopId: workshop.id,
   });
   cleanup.repairJobIds.push(repairJob.id);
   await transitionClaimStatus(admin, claim.id, "UNDER_SURVEY");

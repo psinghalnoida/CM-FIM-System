@@ -13,17 +13,17 @@ import {
 
 // M26: My Work — a personalized "needs your action" view, scoped to the
 // caller's role. No new schema, no new "assigned to me" concept: nothing
-// in this app tracks per-user assignment except Survey.surveyorUserId
-// (nullable, set only when the surveyor is an internal user), and even
-// that isn't who's *allowed* to act (any SURVEYOR can update any
-// survey — see lib/claims/survey.ts's WRITE_ROLES). So "needs your
-// action" here means "what your role's WRITE_ROLES already let you
-// touch, and hasn't reached a terminal state yet" — the same RBAC/
-// terminal-status definitions each module already uses, not a new
-// notion invented for this page. AUDITOR is read-only everywhere
-// (docs/schema/M2A.md) and gets an empty, explicit "nothing to action"
-// result rather than an invented list. See docs/DASHBOARDS.md's M26
-// section.
+// in this app tracks per-user assignment except Surveyor.linkedUserId
+// (nullable, set only when the surveyor is an internal user — M27
+// master data, formerly Survey.surveyorUserId), and even that isn't who's
+// *allowed* to act (any SURVEYOR can update any survey — see
+// lib/claims/survey.ts's WRITE_ROLES). So "needs your action" here means
+// "what your role's WRITE_ROLES already let you touch, and hasn't
+// reached a terminal state yet" — the same RBAC/terminal-status
+// definitions each module already uses, not a new notion invented for
+// this page. AUDITOR is read-only everywhere (docs/schema/M2A.md) and
+// gets an empty, explicit "nothing to action" result rather than an
+// invented list. See docs/DASHBOARDS.md's M26 section.
 
 export type MyWorkItemKind =
   | "INCIDENT"
@@ -117,17 +117,17 @@ async function openRepairJobItems(
     where: { status: { in: REPAIR_JOB_OPEN_STATUSES } },
     select: {
       id: true,
-      workshopName: true,
       status: true,
       claimId: true,
       claim: { select: { claimNumber: true } },
+      workshop: { select: { name: true } },
     },
     orderBy: { createdAt: "asc" },
   });
   return jobs.map((job) => ({
     kind: "REPAIR_JOB",
     id: job.id,
-    label: `${job.claim.claimNumber} — ${job.workshopName}`,
+    label: `${job.claim.claimNumber} — ${job.workshop.name}`,
     detail: job.status.replaceAll("_", " "),
     href: `/claims/${job.claimId}/repair-jobs/${job.id}`,
   }));

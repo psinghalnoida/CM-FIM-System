@@ -14,6 +14,8 @@ import { listSettlementsForClaim } from "@/lib/settlements/settlement";
 import { CreateSettlementForm } from "@/components/settlements/create-settlement-form";
 import { DetailTabs } from "@/components/shared/detail-tabs";
 import { TimelineTab } from "@/components/shared/timeline-tab";
+import { listSurveyors } from "@/lib/masters/surveyor";
+import { listWorkshops } from "@/lib/masters/workshop";
 
 const TABS = [
   { key: "overview", label: "Overview" },
@@ -91,6 +93,10 @@ async function OverviewTab({
     claimId: claim.id,
   });
   const settlements = await listSettlementsForClaim(session, claim.id);
+  const [surveyors, workshops] = await Promise.all([
+    listSurveyors(session),
+    listWorkshops(session),
+  ]);
 
   return (
     <div>
@@ -111,7 +117,7 @@ async function OverviewTab({
         <dt className="text-muted-foreground">Policy</dt>
         <dd>
           {claim.policy
-            ? `${claim.policy.policyNumber} (${claim.policy.insurerName})`
+            ? `${claim.policy.policyNumber} (${claim.policy.insurer.name})`
             : "No matching policy (BR-05)"}
         </dd>
       </dl>
@@ -130,7 +136,7 @@ async function OverviewTab({
           {claim.surveys.map((survey) => (
             <tr key={survey.id} className="border-border border-b">
               <td className="py-2">{survey.surveyNumber}</td>
-              <td className="py-2">{survey.surveyorName}</td>
+              <td className="py-2">{survey.surveyor.name}</td>
               <td className="py-2">{survey.status}</td>
               <td className="py-2">
                 <Link
@@ -154,7 +160,10 @@ async function OverviewTab({
           )}
         </tbody>
       </table>
-      <CreateSurveyForm claimId={claim.id} />
+      <CreateSurveyForm
+        claimId={claim.id}
+        surveyors={surveyors.map((s) => ({ id: s.id, name: s.name }))}
+      />
 
       <h2 className="mt-8 mb-2 text-lg font-semibold tracking-tight">
         Repair jobs
@@ -171,7 +180,7 @@ async function OverviewTab({
         <tbody>
           {claim.repairJobs.map((repairJob) => (
             <tr key={repairJob.id} className="border-border border-b">
-              <td className="py-2">{repairJob.workshopName}</td>
+              <td className="py-2">{repairJob.workshop.name}</td>
               <td className="py-2">
                 {repairJob.estimatedCost
                   ? `${repairJob.currency} ${repairJob.estimatedCost}`
@@ -200,7 +209,10 @@ async function OverviewTab({
           )}
         </tbody>
       </table>
-      <CreateRepairJobForm claimId={claim.id} />
+      <CreateRepairJobForm
+        claimId={claim.id}
+        workshops={workshops.map((w) => ({ id: w.id, name: w.name }))}
+      />
 
       <h2 className="mt-8 mb-2 text-lg font-semibold tracking-tight">
         TAT stages

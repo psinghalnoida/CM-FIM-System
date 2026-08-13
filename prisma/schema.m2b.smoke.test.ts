@@ -87,13 +87,19 @@ describe("M2b schema", () => {
     await runAndRollback(async (tx) => {
       const { org, user, vehicle, incident } = await seedIncident(tx);
 
+      // M27: Insurer/Surveyor/Workshop are master data — see
+      // docs/MASTERS.md's M27 section.
+      const insurer = await tx.insurer.create({
+        data: { organizationId: org.id, name: "Test Insurer" },
+      });
+
       // BR-05: the policy an incident-date lookup would find.
       const policy = await tx.insurancePolicy.create({
         data: {
           organizationId: org.id,
           vehicleId: vehicle.id,
           policyNumber: `POL-${Date.now()}`,
-          insurerName: "Test Insurer",
+          insurerId: insurer.id,
           policyType: "COMPREHENSIVE",
           coverageStartDate: new Date("2026-01-01"),
           coverageEndDate: new Date("2026-12-31"),
@@ -114,21 +120,27 @@ describe("M2b schema", () => {
         },
       });
 
+      const surveyor = await tx.surveyor.create({
+        data: { organizationId: org.id, name: "External Surveyor Co." },
+      });
       const survey = await tx.survey.create({
         data: {
           organizationId: org.id,
           surveyNumber: `SUR-2026-${Math.floor(Math.random() * 1000000)}`,
           claimId: claim.id,
-          surveyorName: "External Surveyor Co.",
+          surveyorId: surveyor.id,
           status: "SCHEDULED",
         },
       });
 
+      const workshop = await tx.workshop.create({
+        data: { organizationId: org.id, name: "Test Authorized Workshop" },
+      });
       const repairJob = await tx.repairJob.create({
         data: {
           organizationId: org.id,
           claimId: claim.id,
-          workshopName: "Test Authorized Workshop",
+          workshopId: workshop.id,
           estimatedCost: "85000.00",
         },
       });
