@@ -49,7 +49,7 @@ export default async function RepairJobDetailPage({
 
       <div className="mt-2 mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">
-          Repair job — {repairJob.workshopName}
+          Repair job — {repairJob.workshop.name}
         </h1>
         <StatusTransitionSelect
           endpoint={`/api/claims/${claimId}/repair-jobs/${repairJobId}/status`}
@@ -64,9 +64,11 @@ export default async function RepairJobDetailPage({
           <dt className="text-muted-foreground">Status</dt>
           <dd>{repairJob.status}</dd>
           <dt className="text-muted-foreground">Workshop</dt>
-          <dd>{repairJob.workshopName}</dd>
+          <dd>{repairJob.workshop.name}</dd>
           <dt className="text-muted-foreground">Contact</dt>
-          <dd>{repairJob.workshopContact ?? "—"}</dd>
+          <dd>{repairJob.workshop.contact ?? "—"}</dd>
+          <dt className="text-muted-foreground">Address</dt>
+          <dd>{repairJob.workshop.address ?? "—"}</dd>
           <dt className="text-muted-foreground">Estimated cost</dt>
           <dd>
             {repairJob.estimatedCost

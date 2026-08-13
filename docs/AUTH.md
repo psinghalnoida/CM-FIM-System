@@ -69,6 +69,17 @@ session still valid in the database — is made by `verifySession()` in
 `lib/dal.ts`, called from every protected Server Component, Server Action,
 and Route Handler. `proxy.ts` failing open or being misconfigured would
 degrade UX (an extra bounce through a page that then 401s), not security.
+**This actually happened**: M23-M26 added `/fleet`, `/reports`, and
+`/my-work` as new top-level protected routes but — caught during M23-M26's
+own HTTP walkthrough, not by any test, since `proxy.ts` has no automated
+coverage — their prefixes were never added to `PROTECTED_PREFIXES` or
+`config.matcher`. The pages themselves were never insecure
+(`verifySession()`'s own `unauthorized()` still fired), just
+inconsistent: an unauthenticated visit hit a raw 401 page instead of the
+friendly `/login` redirect every other protected route gives. Fixed by
+adding all three; worth remembering as a checklist item — *every* new
+top-level route under `app/(app)/**` needs a `proxy.ts` entry, not just
+its own `verifySession()` call.
 
 **`unauthorized()`/`forbidden()`, not manual `redirect()`, for access
 control.** This Next.js version ships first-class primitives for exactly

@@ -8,10 +8,12 @@ import { assertDepotInScope } from "@/lib/masters/depot-scope";
 import { DomainError } from "@/lib/domain-error";
 import { SurveyStatus } from "@/lib/generated/prisma/enums";
 
-// Surveys are a sub-workflow of a Claim (docs/schema/M2B.md). Surveyors
-// are frequently external agency reps with no CM FIM System login, so
-// surveyorName is always a plain string; surveyorUserId is set only when
-// the surveyor happens to be an internal User. See docs/CLAIMS.md.
+// Surveys are a sub-workflow of a Claim (docs/schema/M2B.md). Who
+// conducted the survey is a Surveyor master-data row (M27,
+// lib/masters/surveyor.ts) — surveyors are frequently external agency
+// reps with no CM FIM System login, which is why contact/linked-user
+// info lives on the Surveyor row itself, not re-entered per survey. See
+// docs/CLAIMS.md and docs/MASTERS.md's M27 section.
 
 const WRITE_ROLES = ["ORG_ADMIN", "CLAIMS_MANAGER", "SURVEYOR"] as const;
 
@@ -54,9 +56,7 @@ async function assertClaimAccessible(session: AuthSession, claimId: string) {
 
 export const CreateSurveySchema = z.object({
   claimId: z.uuid(),
-  surveyorName: z.string().trim().min(1).max(200),
-  surveyorContact: z.string().trim().max(100).optional(),
-  surveyorUserId: z.uuid().optional(),
+  surveyorId: z.uuid(),
   scheduledAt: z.coerce.date().optional(),
 });
 export type CreateSurveyInput = z.infer<typeof CreateSurveySchema>;
@@ -66,12 +66,8 @@ export async function createSurvey(session: AuthSession, input: unknown) {
   const data = CreateSurveySchema.parse(input);
   await assertClaimAccessible(session, data.claimId);
 
-  if (data.surveyorUserId) {
-    const scoped = scopedDb(session.user.organizationId);
-    await scoped.user.findUniqueOrThrow({
-      where: { id: data.surveyorUserId },
-    });
-  }
+  const scoped = scopedDb(session.user.organizationId);
+  await scoped.surveyor.findUniqueOrThrow({ where: { id: data.surveyorId } });
 
   const survey = await db.$transaction(async (tx) => {
     const surveyNumber = await generateSurveyNumber(
@@ -83,9 +79,7 @@ export async function createSurvey(session: AuthSession, input: unknown) {
         organizationId: session.user.organizationId,
         surveyNumber,
         claimId: data.claimId,
-        surveyorName: data.surveyorName,
-        surveyorContact: data.surveyorContact,
-        surveyorUserId: data.surveyorUserId,
+        surveyorId: data.surveyorId,
         scheduledAt: data.scheduledAt,
       },
     });
@@ -105,7 +99,6 @@ export async function createSurvey(session: AuthSession, input: unknown) {
 }
 
 export const UpdateSurveySchema = z.object({
-  surveyorContact: z.string().trim().max(100).optional(),
   scheduledAt: z.coerce.date().optional(),
   conductedAt: z.coerce.date().optional(),
   findings: z.string().trim().max(4000).optional(),
@@ -191,7 +184,10 @@ export async function getSurvey(session: AuthSession, id: string) {
   const scoped = scopedDb(session.user.organizationId);
   const survey = await scoped.survey.findUnique({
     where: { id },
-    include: { claim: { include: { incident: true } }, surveyorUser: true },
+    include: {
+      claim: { include: { incident: true } },
+      surveyor: { include: { linkedUser: true } },
+    },
   });
   if (!survey) return null;
   assertDepotInScope(session, survey.claim.incident.depotId);
@@ -206,6 +202,7 @@ export async function listSurveysForClaim(
   const scoped = scopedDb(session.user.organizationId);
   return scoped.survey.findMany({
     where: { claimId },
+    include: { surveyor: true },
     orderBy: { createdAt: "desc" },
   });
 }

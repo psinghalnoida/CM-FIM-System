@@ -25,6 +25,7 @@ beforeAll(() => {
 const cleanup = {
   claimIds: [] as string[],
   policyIds: [] as string[],
+  insurerIds: [] as string[],
   incidentIds: [] as string[],
   vehicleIds: [] as string[],
   userIds: [] as string[],
@@ -44,6 +45,7 @@ afterEach(async () => {
   await db.insurancePolicy.deleteMany({
     where: { id: { in: cleanup.policyIds } },
   });
+  await db.insurer.deleteMany({ where: { id: { in: cleanup.insurerIds } } });
   await db.incident.deleteMany({ where: { id: { in: cleanup.incidentIds } } });
   await db.vehicle.deleteMany({ where: { id: { in: cleanup.vehicleIds } } });
   await db.user.deleteMany({ where: { id: { in: cleanup.userIds } } });
@@ -52,6 +54,7 @@ afterEach(async () => {
   await db.organization.deleteMany({ where: { id: { in: cleanup.orgIds } } });
   cleanup.claimIds = [];
   cleanup.policyIds = [];
+  cleanup.insurerIds = [];
   cleanup.incidentIds = [];
   cleanup.vehicleIds = [];
   cleanup.userIds = [];
@@ -202,12 +205,16 @@ describe("createClaim", () => {
       await seedOrgWithIncident(incidentDateTime);
     const admin = await userSessionWithRole(org, null, "ORG_ADMIN");
 
+    const insurer = await db.insurer.create({
+      data: { organizationId: org.id, name: unique("Insurer") },
+    });
+    cleanup.insurerIds.push(insurer.id);
     const policy = await db.insurancePolicy.create({
       data: {
         organizationId: org.id,
         vehicleId: vehicle.id,
         policyNumber: unique("POL"),
-        insurerName: "Test Insurer",
+        insurerId: insurer.id,
         coverageStartDate: new Date("2026-01-01T00:00:00Z"),
         coverageEndDate: new Date("2026-12-31T23:59:59Z"),
       },
@@ -219,7 +226,7 @@ describe("createClaim", () => {
         organizationId: org.id,
         vehicleId: vehicle.id,
         policyNumber: unique("POL"),
-        insurerName: "Old Insurer",
+        insurerId: insurer.id,
         coverageStartDate: new Date("2024-01-01T00:00:00Z"),
         coverageEndDate: new Date("2024-12-31T23:59:59Z"),
       },
@@ -251,12 +258,16 @@ describe("createClaim", () => {
       new Date("2026-03-15T10:00:00Z"),
     );
     const admin = await userSessionWithRole(org, null, "ORG_ADMIN");
+    const insurer = await db.insurer.create({
+      data: { organizationId: org.id, name: unique("Insurer") },
+    });
+    cleanup.insurerIds.push(insurer.id);
     const policy = await db.insurancePolicy.create({
       data: {
         organizationId: org.id,
         vehicleId: vehicle.id,
         policyNumber: unique("POL"),
-        insurerName: "Test Insurer",
+        insurerId: insurer.id,
         coverageStartDate: new Date("2026-01-01T00:00:00Z"),
         coverageEndDate: new Date("2026-12-31T23:59:59Z"),
       },

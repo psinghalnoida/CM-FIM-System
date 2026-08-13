@@ -21,6 +21,8 @@ import {
   assertCanReadDocumentsFor,
 } from "@/lib/documents/link-scope";
 import { enqueueOcrExtraction } from "@/lib/ocr/queue";
+import { depotScopeFor } from "@/lib/masters/depot-scope";
+import type { ExtractedField } from "@/lib/ocr/provider";
 import { DocumentType } from "@/lib/generated/prisma/enums";
 
 // BR-04: documents are versioned, never overwritten in place. Upload is a
@@ -414,4 +416,145 @@ export async function getDownloadUrl(session: AuthSession, documentId: string) {
     fileName: document.currentVersion.fileName,
     expiresInSeconds: PRESIGNED_URL_TTL_SECONDS,
   };
+}
+
+// ---------------------------------------------------------------------------
+// M22: org-wide document list ("Document Repository")
+// ---------------------------------------------------------------------------
+
+export type VehicleDocumentStatus =
+  | "VALID"
+  | "EXPIRING_SOON"
+  | "EXPIRED"
+  | "NO_EXPIRY";
+
+const EXPIRING_SOON_WINDOW_DAYS = 30;
+
+export function computeExpiryStatus(
+  expiry: Date | null,
+  now: Date,
+): VehicleDocumentStatus {
+  if (!expiry) return "NO_EXPIRY";
+  const days = (expiry.getTime() - now.getTime()) / (24 * 60 * 60 * 1000);
+  if (days < 0) return "EXPIRED";
+  if (days <= EXPIRING_SOON_WINDOW_DAYS) return "EXPIRING_SOON";
+  return "VALID";
+}
+
+/** The design shows a single "OCR confidence" number per document; extractedFields carries one per field, so this averages them. Null (not 0) when there's nothing to average — "no OCR yet" isn't the same as "0% confident." */
+export function averageOcrConfidence(extractedFields: unknown): number | null {
+  const fields = (extractedFields as ExtractedField[] | null) ?? [];
+  if (fields.length === 0) return null;
+  const avg =
+    fields.reduce((sum, field) => sum + field.confidence, 0) / fields.length;
+  return Math.round(avg * 100);
+}
+
+export interface VehicleDocumentRow {
+  id: string;
+  title: string;
+  documentType: DocumentType;
+  vehicleId: string;
+  vehicleRegistration: string;
+  depotId: string;
+  depotName: string;
+  validityExpiryDate: Date | null;
+  status: VehicleDocumentStatus;
+  ocrConfidencePercent: number | null;
+  uploadedAt: Date | null;
+}
+
+export interface ListVehicleDocumentsFilter {
+  search?: string;
+  vehicleId?: string;
+  documentType?: DocumentType;
+  depotId?: string;
+  status?: VehicleDocumentStatus;
+}
+
+/**
+ * The "Document Repository" org-wide list — deliberately scoped to
+ * VEHICLE-linked documents specifically (registration/insurance/
+ * fitness/permit/PUC — compliance documents with an expiry date), not
+ * every DocumentLink entity type. This matches the design's own columns
+ * (bus number, expiry, OCR confidence) and mock data, which are 100%
+ * vehicle-linked; documents linked to CLAIM/SURVEY/REPAIR_JOB/
+ * SETTLEMENT/INCIDENT/DRIVER have no natural place in a "bus no. /
+ * expiry" table and stay reachable only from their own entity's
+ * Documents tab. A deliberate scope narrowing, not an oversight — see
+ * docs/DOCUMENTS.md.
+ */
+export async function listVehicleDocuments(
+  session: AuthSession,
+  filter: ListVehicleDocumentsFilter = {},
+): Promise<VehicleDocumentRow[]> {
+  const scoped = scopedDb(session.user.organizationId);
+  const depotScope = depotScopeFor(session);
+  if (depotScope && filter.depotId && filter.depotId !== depotScope) {
+    // Same "a filter for out-of-scope data returns empty, not a bypass"
+    // call as lib/incidents/incident.ts's listIncidents (M21).
+    return [];
+  }
+
+  const vehicles = await scoped.vehicle.findMany({
+    where: {
+      depotId: depotScope ?? filter.depotId,
+      id: filter.vehicleId,
+    },
+    include: { depot: true },
+  });
+  if (vehicles.length === 0) return [];
+  const vehicleById = new Map(vehicles.map((v) => [v.id, v]));
+
+  // DocumentLink has no organizationId column (generic, no-FK by design
+  // — see the schema file's top comment); org isolation here comes from
+  // `vehicles` above (already org-scoped) plus this explicit filter.
+  const links = await db.documentLink.findMany({
+    where: {
+      linkedEntityType: "VEHICLE",
+      linkedEntityId: { in: [...vehicleById.keys()] },
+      document: { organizationId: session.user.organizationId },
+    },
+    include: {
+      document: {
+        include: { currentVersion: { include: { ocrExtraction: true } } },
+      },
+    },
+  });
+
+  const now = new Date();
+  return links
+    .map((link) => {
+      const vehicle = vehicleById.get(link.linkedEntityId)!;
+      const doc = link.document;
+      const row: VehicleDocumentRow = {
+        id: doc.id,
+        title: doc.title,
+        documentType: doc.documentType,
+        vehicleId: vehicle.id,
+        vehicleRegistration: vehicle.registrationNumber,
+        depotId: vehicle.depotId,
+        depotName: vehicle.depot.name,
+        validityExpiryDate: doc.validityExpiryDate,
+        status: computeExpiryStatus(doc.validityExpiryDate, now),
+        ocrConfidencePercent: averageOcrConfidence(
+          doc.currentVersion?.ocrExtraction?.extractedFields,
+        ),
+        uploadedAt: doc.currentVersion?.createdAt ?? null,
+      };
+      return row;
+    })
+    .filter(
+      (row) => !filter.documentType || row.documentType === filter.documentType,
+    )
+    .filter((row) => !filter.status || row.status === filter.status)
+    .filter((row) => {
+      if (!filter.search) return true;
+      const needle = filter.search.toLowerCase();
+      return (
+        row.vehicleRegistration.toLowerCase().includes(needle) ||
+        row.title.toLowerCase().includes(needle)
+      );
+    })
+    .sort((a, b) => a.vehicleRegistration.localeCompare(b.vehicleRegistration));
 }

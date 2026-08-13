@@ -223,6 +223,38 @@ async function main() {
   const vehicleBId = vehicleIds[2]; // Chennai
   const vehicleCId = vehicleIds[4]; // Pune
 
+  // M27: master data (Insurer/Surveyor/Workshop) — see docs/MASTERS.md's
+  // M27 section. Upserted here, same idempotent-reseed pattern as
+  // everything else in this file.
+  const insurer = await db.insurer.upsert({
+    where: { organizationId_name: { organizationId: org.id, name: "ICICI Lombard" } },
+    create: { organizationId: org.id, name: "ICICI Lombard" },
+    update: {},
+  });
+  const surveyorRamesh = await db.surveyor.upsert({
+    where: { organizationId_name: { organizationId: org.id, name: "Ramesh Iyer" } },
+    create: { organizationId: org.id, name: "Ramesh Iyer", contact: "9812345678" },
+    update: {},
+  });
+  const surveyorPriya = await db.surveyor.upsert({
+    where: { organizationId_name: { organizationId: org.id, name: "Priya Nair" } },
+    create: { organizationId: org.id, name: "Priya Nair", contact: "9823456789" },
+    update: {},
+  });
+  const workshopGurugram = await db.workshop.upsert({
+    where: {
+      organizationId_name: {
+        organizationId: org.id,
+        name: "JBM Authorized Workshop, Gurugram",
+      },
+    },
+    create: {
+      organizationId: org.id,
+      name: "JBM Authorized Workshop, Gurugram",
+    },
+    update: {},
+  });
+
   // One active comprehensive policy on the first vehicle, covering the
   // whole current year — BR-05 auto-selects it for INSURANCE claims.
   const yearStart = new Date(`${new Date().getFullYear()}-01-01T00:00:00Z`);
@@ -238,7 +270,7 @@ async function main() {
       organizationId: org.id,
       vehicleId: vehicleAId,
       policyNumber: "POL-2026-0001",
-      insurerName: "ICICI Lombard",
+      insurerId: insurer.id,
       policyType: "COMPREHENSIVE",
       coverageStartDate: yearStart,
       coverageEndDate: yearEnd,
@@ -330,8 +362,7 @@ async function main() {
     });
     await createSurvey(surveyorSession, {
       claimId: closedClaim.id,
-      surveyorName: "Ramesh Iyer",
-      surveyorContact: "9812345678",
+      surveyorId: surveyorRamesh.id,
     });
     await transitionClaimStatus(
       claimsManagerSession,
@@ -346,7 +377,7 @@ async function main() {
 
     await createRepairJob(workshopSession, {
       claimId: closedClaim.id,
-      workshopName: "JBM Authorized Workshop, Gurugram",
+      workshopId: workshopGurugram.id,
       estimatedCost: 85000,
     });
     await transitionClaimStatus(
@@ -415,8 +446,7 @@ async function main() {
     });
     await createSurvey(surveyorSession, {
       claimId: inProgressClaim.id,
-      surveyorName: "Priya Nair",
-      surveyorContact: "9823456789",
+      surveyorId: surveyorPriya.id,
     });
     inProgressClaim = await transitionClaimStatus(
       claimsManagerSession,

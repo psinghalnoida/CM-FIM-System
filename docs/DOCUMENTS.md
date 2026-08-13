@@ -19,6 +19,68 @@ entity's own module's `WRITE_ROLES` (e.g. a survey report is uploaded by
 whoever can write a `Survey`), not the `VEHICLE`/`DRIVER` default. See
 `docs/CLAIM_SUBRECORDS.md`.
 
+**Update (M22):** an org-wide "Document Repository" page
+(`/documents`) and a restyled Document Viewer (`/documents/[id]/ocr`)
+landed on top of the M5/M11 service layer — no new schema. See
+"M22: Document Repository + Viewer" below.
+
+## M22: Document Repository + Viewer
+
+**Scoped to VEHICLE-linked documents only — a deliberate narrowing, not
+an oversight.** The design's Document Repository table (Bus No. /
+Depot / Document / Title / Expiry / Status / OCR confidence) and its
+mock data are 100% vehicle-linked — registration, insurance, fitness,
+permit, PUC. Documents linked to `CLAIM`/`SURVEY`/`REPAIR_JOB`/
+`SETTLEMENT`/`INCIDENT`/`DRIVER` have no natural place in a "bus no. /
+expiry" table (a claim document has no bus number) and stay reachable
+only from their own entity's own Documents tab, exactly as before this
+milestone. `listVehicleDocuments()` (`lib/documents/document.ts`) is a
+new, separate function from `listDocumentsForEntity()` — not an
+extension of it — and `GET /api/documents` dispatches between the two
+based on whether `linkedEntityType`/`linkedEntityId` are present (entity
+mode, unchanged since M5) or absent (this new org-wide mode).
+
+**Expiry status is computed, not stored.** `computeExpiryStatus(expiry,
+now)` derives `VALID`/`EXPIRING_SOON` (≤30 days)/`EXPIRED`/`NO_EXPIRY`
+from the existing `validityExpiryDate` at read time — no new column, no
+background job keeping a stored status field in sync. The design's
+"Missing" KPI tile (documents a vehicle should have but doesn't) is
+dropped: nothing in the schema defines *which* document types are
+required per vehicle, so "missing" isn't a computable status today, only
+a policy decision nobody's made yet. The other three KPI tiles (Valid /
+Expiring / Expired) are real, computed counts and link to `/documents`
+pre-filtered by `?view=expiring`/`?view=expired`.
+
+**OCR confidence is averaged, not per-field.** `OcrExtraction
+.extractedFields` stores one confidence value per field (name, expiry
+date, ...); the design shows one number per document. `averageOcrConfidence()`
+takes the mean across a document's fields, rounded to a whole percent,
+and returns `null` (not `0`) when there's no extraction yet — "hasn't
+been OCR'd" and "OCR'd with 0% confidence" are different facts and the
+UI (a progress bar + "—" vs "0%") treats them differently.
+
+**"Request re-upload" reveals the real re-upload flow instead of being a
+dead button.** The design implies notifying a specific person to
+re-upload a document; there's no paging/notification mechanism in this
+system (out of scope — would need a new model, not requested), so the
+button reveals `components/documents/upload-new-version-form.tsx`, which
+runs the actual M5 presign → PUT → complete new-version flow right where
+the design places the action. Practical substitute, not a placeholder
+that goes nowhere.
+
+**`GET /documents`'s two response shapes are both real, not stubs.**
+`Document` (entity mode) and `VehicleDocumentRow` (Document Repository
+mode) are deliberately different shapes — the latter denormalizes
+`vehicleRegistration`/`depotName`/`status`/`ocrConfidencePercent` because
+the table renders directly from it with no follow-up fetch per row. See
+`docs/openapi.yaml`'s updated `/documents` GET.
+
+**Depot-scoped for `DEPOT_MANAGER`, same pattern as every list endpoint
+in this codebase.** An explicit `depotId` filter for a depot outside a
+`DEPOT_MANAGER`'s scope returns `[]`, not a bypass and not a confusing
+empty result via an AND-ed query collision — the same call made in
+M21's `listIncidents`.
+
 ## The upload flow
 
 ```mermaid
@@ -161,6 +223,13 @@ test, rather than needing a 100MB fixture in the test suite).
     vehicle; a non-DEPOT_MANAGER role (CLAIMS_MANAGER) can.
   - `listDocumentsForEntity` returns only documents linked to the
     requested entity.
+  - **`listVehicleDocuments` (M22, 1 test)** — 4 documents across 2
+    vehicles/2 depots with distinct expiry dates confirm
+    `VALID`/`EXPIRING_SOON`/`EXPIRED`/`NO_EXPIRY` are each computed
+    correctly; an org-wide admin sees all 4, a `DEPOT_MANAGER` sees only
+    their own depot's; `depotId`/`documentType`/`status`/`search` filters
+    each work; a `DEPOT_MANAGER` explicitly filtering by another depot
+    gets `[]`, not a leak.
 - **Real HTTP, against the built app + a separately-started s3rver
   instance**: the full presign → PUT → complete → list → download-URL →
   fetch round trip via `curl`, confirming the exact uploaded file content

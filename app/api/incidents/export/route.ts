@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/dal";
 import { toApiErrorResponse } from "@/lib/api-errors";
-import { listIncidents } from "@/lib/incidents/incident";
-import { parseListIncidentsFilter } from "@/app/api/incidents/route";
+import {
+  listIncidents,
+  parseListIncidentsFilter,
+} from "@/lib/incidents/incident";
 
 // M21: the Incident List "Export" button. CSV rather than XLSX/PDF — the
 // simplest format that opens directly in any spreadsheet tool, and the

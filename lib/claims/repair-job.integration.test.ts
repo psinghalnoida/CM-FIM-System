@@ -28,6 +28,7 @@ beforeAll(() => {
 
 const cleanup = {
   repairJobIds: [] as string[],
+  workshopIds: [] as string[],
   claimIds: [] as string[],
   incidentIds: [] as string[],
   vehicleIds: [] as string[],
@@ -53,6 +54,9 @@ afterEach(async () => {
   await db.repairJob.deleteMany({
     where: { id: { in: cleanup.repairJobIds } },
   });
+  await db.workshop.deleteMany({
+    where: { id: { in: cleanup.workshopIds } },
+  });
   await db.claim.deleteMany({ where: { id: { in: cleanup.claimIds } } });
   await db.incident.deleteMany({ where: { id: { in: cleanup.incidentIds } } });
   await db.vehicle.deleteMany({ where: { id: { in: cleanup.vehicleIds } } });
@@ -61,6 +65,7 @@ afterEach(async () => {
   await db.city.deleteMany({ where: { id: { in: cleanup.cityIds } } });
   await db.organization.deleteMany({ where: { id: { in: cleanup.orgIds } } });
   cleanup.repairJobIds = [];
+  cleanup.workshopIds = [];
   cleanup.claimIds = [];
   cleanup.incidentIds = [];
   cleanup.vehicleIds = [];
@@ -128,7 +133,11 @@ async function seedOrgWithClaim() {
     claimType: "MAINTENANCE",
   });
   cleanup.claimIds.push(claim.id);
-  return { org, depotA, depotB, claim, admin };
+  const workshop = await db.workshop.create({
+    data: { organizationId: org.id, name: unique("Workshop") },
+  });
+  cleanup.workshopIds.push(workshop.id);
+  return { org, depotA, depotB, claim, admin, workshop };
 }
 
 async function userSessionWithRole(
@@ -164,11 +173,11 @@ function track(repairJobId: string) {
 
 describe("createRepairJob", () => {
   it("creates a repair job with a default INR currency and records a CREATE audit entry", async () => {
-    const { claim, admin } = await seedOrgWithClaim();
+    const { claim, admin, workshop } = await seedOrgWithClaim();
 
     const repairJob = await createRepairJob(admin, {
       claimId: claim.id,
-      workshopName: "ACME Motors",
+      workshopId: workshop.id,
       estimatedCost: 15000,
     });
     track(repairJob.id);
@@ -186,7 +195,7 @@ describe("createRepairJob", () => {
   });
 
   it("WORKSHOP_COORDINATOR can create repair jobs; DEPOT_MANAGER cannot", async () => {
-    const { org, depotA, claim } = await seedOrgWithClaim();
+    const { org, depotA, claim, workshop } = await seedOrgWithClaim();
     const coordinator = await userSessionWithRole(
       org,
       null,
@@ -196,7 +205,7 @@ describe("createRepairJob", () => {
 
     const repairJob = await createRepairJob(coordinator, {
       claimId: claim.id,
-      workshopName: "Coordinator Workshop",
+      workshopId: workshop.id,
     });
     track(repairJob.id);
     expect(repairJob.id).toBeDefined();
@@ -204,7 +213,7 @@ describe("createRepairJob", () => {
     await expect(
       createRepairJob(managerA, {
         claimId: claim.id,
-        workshopName: "Should fail",
+        workshopId: workshop.id,
       }),
     ).rejects.toThrow();
   });
@@ -212,10 +221,10 @@ describe("createRepairJob", () => {
 
 describe("updateRepairJob", () => {
   it("updates cost fields and records an UPDATE audit entry", async () => {
-    const { claim, admin } = await seedOrgWithClaim();
+    const { claim, admin, workshop } = await seedOrgWithClaim();
     const repairJob = await createRepairJob(admin, {
       claimId: claim.id,
-      workshopName: "ACME Motors",
+      workshopId: workshop.id,
       estimatedCost: 10000,
     });
     track(repairJob.id);
@@ -238,10 +247,10 @@ describe("updateRepairJob", () => {
 
 describe("transitionRepairJobStatus", () => {
   it("walks ESTIMATE_PENDING -> APPROVED -> IN_PROGRESS -> COMPLETED", async () => {
-    const { claim, admin } = await seedOrgWithClaim();
+    const { claim, admin, workshop } = await seedOrgWithClaim();
     const repairJob = await createRepairJob(admin, {
       claimId: claim.id,
-      workshopName: "ACME Motors",
+      workshopId: workshop.id,
     });
     track(repairJob.id);
 
@@ -266,10 +275,10 @@ describe("transitionRepairJobStatus", () => {
   });
 
   it("rejects skipping a stage (409) — e.g. ESTIMATE_PENDING straight to COMPLETED", async () => {
-    const { claim, admin } = await seedOrgWithClaim();
+    const { claim, admin, workshop } = await seedOrgWithClaim();
     const repairJob = await createRepairJob(admin, {
       claimId: claim.id,
-      workshopName: "ACME Motors",
+      workshopId: workshop.id,
     });
     track(repairJob.id);
 
@@ -281,10 +290,10 @@ describe("transitionRepairJobStatus", () => {
 
 describe("addWorkshopActivity", () => {
   it("logs an activity against the repair job, scoped through its parent claim/incident", async () => {
-    const { claim, admin } = await seedOrgWithClaim();
+    const { claim, admin, workshop } = await seedOrgWithClaim();
     const repairJob = await createRepairJob(admin, {
       claimId: claim.id,
-      workshopName: "ACME Motors",
+      workshopId: workshop.id,
     });
     track(repairJob.id);
 
@@ -302,10 +311,10 @@ describe("addWorkshopActivity", () => {
   });
 
   it("rejects a DEPOT_MANAGER from a different depot logging an activity", async () => {
-    const { depotB, org, claim, admin } = await seedOrgWithClaim();
+    const { depotB, org, claim, admin, workshop } = await seedOrgWithClaim();
     const repairJob = await createRepairJob(admin, {
       claimId: claim.id,
-      workshopName: "ACME Motors",
+      workshopId: workshop.id,
     });
     track(repairJob.id);
     const managerB = await userSessionWithRole(org, depotB.id, "DEPOT_MANAGER");
@@ -320,10 +329,10 @@ describe("addWorkshopActivity", () => {
 
 describe("addRepairPart / listRepairPartsForRepairJob (M19)", () => {
   it("adds a named part and lists it in creation order, also returned by getRepairJob", async () => {
-    const { claim, admin } = await seedOrgWithClaim();
+    const { claim, admin, workshop } = await seedOrgWithClaim();
     const repairJob = await createRepairJob(admin, {
       claimId: claim.id,
-      workshopName: "ACME Motors",
+      workshopId: workshop.id,
     });
     track(repairJob.id);
 
@@ -344,10 +353,10 @@ describe("addRepairPart / listRepairPartsForRepairJob (M19)", () => {
   });
 
   it("rejects a DEPOT_MANAGER from a different depot adding a part", async () => {
-    const { depotB, org, claim, admin } = await seedOrgWithClaim();
+    const { depotB, org, claim, admin, workshop } = await seedOrgWithClaim();
     const repairJob = await createRepairJob(admin, {
       claimId: claim.id,
-      workshopName: "ACME Motors",
+      workshopId: workshop.id,
     });
     track(repairJob.id);
     const managerB = await userSessionWithRole(org, depotB.id, "DEPOT_MANAGER");
@@ -360,13 +369,13 @@ describe("addRepairPart / listRepairPartsForRepairJob (M19)", () => {
 
 describe("listRepairJobsForClaim", () => {
   it("is depot-scoped for DEPOT_MANAGER via the claim's incident", async () => {
-    const { org, depotA, depotB, claim, admin } = await seedOrgWithClaim();
+    const { org, depotA, depotB, claim, admin, workshop } = await seedOrgWithClaim();
     const managerA = await userSessionWithRole(org, depotA.id, "DEPOT_MANAGER");
     const managerB = await userSessionWithRole(org, depotB.id, "DEPOT_MANAGER");
 
     const repairJob = await createRepairJob(admin, {
       claimId: claim.id,
-      workshopName: "ACME Motors",
+      workshopId: workshop.id,
     });
     track(repairJob.id);
 

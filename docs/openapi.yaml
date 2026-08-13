@@ -151,6 +151,142 @@ paths:
                 { schema: { $ref: "#/components/schemas/Error" } },
             }
 
+  # --- Administration: Master Data (M27) ------------------------------
+  # Insurer/Broker/Surveyor/Workshop — same shape (list=any role, write=
+  # ORG_ADMIN only) as the /cities, /depots masters below. See
+  # docs/MASTERS.md's M27 section.
+  /admin/insurers:
+    get:
+      tags: [Administration]
+      summary: List insurers in the caller's org (any authenticated role)
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      { type: array, items: { $ref: "#/components/schemas/Insurer" } },
+                  },
+              },
+          }
+    post:
+      tags: [Administration]
+      summary: Create an insurer (ORG_ADMIN)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties: { name: { type: string, maxLength: 200 } }
+      responses:
+        "201": { description: Created }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/brokers:
+    get:
+      tags: [Administration]
+      summary: List brokers in the caller's org (any authenticated role)
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      { type: array, items: { $ref: "#/components/schemas/Broker" } },
+                  },
+              },
+          }
+    post:
+      tags: [Administration]
+      summary: Create a broker (ORG_ADMIN)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties: { name: { type: string, maxLength: 200 } }
+      responses:
+        "201": { description: Created }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/surveyors:
+    get:
+      tags: [Administration]
+      summary: List surveyors in the caller's org (any authenticated role)
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      { type: array, items: { $ref: "#/components/schemas/Surveyor" } },
+                  },
+              },
+          }
+    post:
+      tags: [Administration]
+      summary: Create a surveyor (ORG_ADMIN)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 200 }
+                contact: { type: string, maxLength: 100 }
+                linkedUserId:
+                  {
+                    type: string,
+                    format: uuid,
+                    description: "Set only when the surveyor is an internal user — not exposed in the Master Data page's create form, but a real, validated field. See docs/MASTERS.md's M27 section.",
+                  }
+      responses:
+        "201": { description: Created }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /admin/workshops:
+    get:
+      tags: [Administration]
+      summary: List workshops in the caller's org (any authenticated role)
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      { type: array, items: { $ref: "#/components/schemas/Workshop" } },
+                  },
+              },
+          }
+    post:
+      tags: [Administration]
+      summary: Create a workshop (ORG_ADMIN)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 200 }
+                contact: { type: string, maxLength: 100 }
+                address: { type: string, maxLength: 500 }
+      responses:
+        "201": { description: Created }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
   # --- Masters --------------------------------------------------------
   /cities:
     get:
@@ -752,12 +888,13 @@ paths:
           application/json:
             schema:
               type: object
-              required: [claimId, surveyorName]
+              required: [claimId, surveyorId]
               properties:
                 claimId: { type: string, format: uuid }
-                surveyorName: { type: string, maxLength: 200 }
-                surveyorContact: { type: string, maxLength: 100 }
-                surveyorUserId: { type: string, format: uuid }
+                surveyorId:
+                  description: M27 — a Surveyor master-data row's id (GET /admin/surveyors).
+                  type: string
+                  format: uuid
                 scheduledAt: { type: string, format: date-time }
       responses:
         "201": { description: Created }
@@ -837,12 +974,13 @@ paths:
           application/json:
             schema:
               type: object
-              required: [claimId, workshopName]
+              required: [claimId, workshopId]
               properties:
                 claimId: { type: string, format: uuid }
-                workshopName: { type: string, maxLength: 200 }
-                workshopContact: { type: string, maxLength: 100 }
-                workshopAddress: { type: string, maxLength: 500 }
+                workshopId:
+                  description: M27 — a Workshop master-data row's id (GET /admin/workshops).
+                  type: string
+                  format: uuid
                 estimatedCost: { type: number }
                 currency: { type: string, minLength: 3, maxLength: 3 }
                 startDate: { type: string, format: date-time }
@@ -1152,20 +1290,53 @@ paths:
   /documents:
     get:
       tags: [Documents]
-      summary: List documents linked to an entity
+      summary: List documents linked to an entity, or the org-wide Document Repository
+      description: >-
+        Pass both linkedEntityType and linkedEntityId to list one entity's
+        documents (M5), across every LinkedEntityType. Omit both instead to
+        get the M22 "Document Repository" — the org-wide list, deliberately
+        scoped to VEHICLE-linked documents only (see
+        lib/documents/document.ts's listVehicleDocuments doc comment and
+        docs/DOCUMENTS.md) — filterable by the query params below and
+        depot-scoped for DEPOT_MANAGER same as every other list endpoint.
       parameters:
         - name: linkedEntityType
           in: query
-          required: true
+          required: false
           schema: { $ref: "#/components/schemas/LinkedEntityType" }
         - name: linkedEntityId
           in: query
-          required: true
+          required: false
           schema: { type: string, format: uuid }
+        - name: search
+          in: query
+          required: false
+          description: Document Repository mode only — matches vehicle registration or document title, case-insensitive.
+          schema: { type: string }
+        - name: vehicleId
+          in: query
+          required: false
+          description: Document Repository mode only.
+          schema: { type: string, format: uuid }
+        - name: depotId
+          in: query
+          required: false
+          description: Document Repository mode only. A DEPOT_MANAGER filtering by a depot other than their own gets [], not a bypass or a confusing empty result via query collision.
+          schema: { type: string, format: uuid }
+        - name: documentType
+          in: query
+          required: false
+          description: Document Repository mode only.
+          schema: { $ref: "#/components/schemas/DocumentType" }
+        - name: status
+          in: query
+          required: false
+          description: Document Repository mode only.
+          schema: { $ref: "#/components/schemas/VehicleDocumentStatus" }
       responses:
         "200":
           {
-            description: OK,
+            description: OK — an array of Document (entity mode) or VehicleDocumentRow (Document Repository mode),
             content:
               {
                 application/json:
@@ -1173,7 +1344,14 @@ paths:
                     schema:
                       {
                         type: array,
-                        items: { $ref: "#/components/schemas/Document" },
+                        items:
+                          {
+                            oneOf:
+                              [
+                                { $ref: "#/components/schemas/Document" },
+                                { $ref: "#/components/schemas/VehicleDocumentRow" },
+                              ],
+                          },
                       },
                   },
               },
@@ -1570,6 +1748,78 @@ paths:
       responses:
         "200": { description: OK }
 
+  # --- TAT Dashboard (M23) --------------------------------------------------
+  /tat/dashboard:
+    get:
+      tags: [Dashboards]
+      summary: >-
+        A live board of every active (IN_PROGRESS/ON_HOLD) stage across
+        incidents and claims — not a history report, see docs/TAT.md's
+        M23 section
+      parameters:
+        - name: depotId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: caseType
+          in: query
+          description: The real CaseType enum, read off each stage's TatStageTemplate.
+          schema: { $ref: "#/components/schemas/CaseType" }
+        - name: breachedOnly
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200": { description: OK }
+
+  # --- MIS Reports (M24) ----------------------------------------------------
+  /reports/mis:
+    get:
+      tags: [Dashboards]
+      summary: >-
+        Claim ageing, TAT compliance %, incident-type frequency, and
+        repair turnaround by depot — see docs/DASHBOARDS.md's M24 section
+      parameters:
+        - name: depotId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: OK }
+
+  # --- Fleet Dashboard (M25) -------------------------------------------------
+  /fleet:
+    get:
+      tags: [Dashboards]
+      summary: >-
+        Fleet-wide KPIs plus a filterable vehicle list — see
+        docs/DASHBOARDS.md's M25 section
+      parameters:
+        - name: depotId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/VehicleStatus" }
+        - name: hasOpenIncidents
+          in: query
+          schema: { type: boolean }
+        - name: hasOpenClaims
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          {
+            description: "OK — { kpis, vehicles }",
+          }
+
+  # --- My Work (M26) ---------------------------------------------------------
+  /my-work:
+    get:
+      tags: [Dashboards]
+      summary: >-
+        A personalized "needs your action" view scoped to the caller's
+        role — see docs/DASHBOARDS.md's M26 section
+      responses:
+        "200": { description: OK }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -1759,6 +2009,9 @@ components:
     IncidentSeverity:
       type: string
       enum: [LOW, MEDIUM, HIGH, CRITICAL]
+    VehicleStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE, SOLD, SCRAPPED]
     Incident:
       type: object
       properties:
@@ -1850,15 +2103,45 @@ components:
         description: { type: string }
         occurredAt: { type: string, format: date-time }
 
+    Insurer:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        name: { type: string }
+    Broker:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        name: { type: string }
+    Surveyor:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        name: { type: string }
+        contact: { type: string, nullable: true }
+        linkedUserId: { type: string, format: uuid, nullable: true }
+    Workshop:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        name: { type: string }
+        contact: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+
     Survey:
       type: object
       properties:
         id: { type: string, format: uuid }
         claimId: { type: string, format: uuid }
         surveyNumber: { type: string }
-        surveyorName: { type: string }
-        surveyorContact: { type: string, nullable: true }
-        surveyorUserId: { type: string, format: uuid, nullable: true }
+        surveyorId:
+          description: M27 — references a Surveyor master-data row.
+          type: string
+          format: uuid
         status:
           { type: string, enum: [SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED] }
         scheduledAt: { type: string, format: date-time, nullable: true }
@@ -1881,8 +2164,10 @@ components:
       properties:
         id: { type: string, format: uuid }
         claimId: { type: string, format: uuid }
-        workshopName: { type: string }
-        workshopContact: { type: string, nullable: true }
+        workshopId:
+          description: M27 — references a Workshop master-data row.
+          type: string
+          format: uuid
         estimatedCost:
           {
             type: string,
@@ -1975,6 +2260,29 @@ components:
         currentVersionId: { type: string, format: uuid, nullable: true }
         validityStartDate: { type: string, format: date-time, nullable: true }
         validityExpiryDate: { type: string, format: date-time, nullable: true }
+    VehicleDocumentStatus:
+      type: string
+      enum: [VALID, EXPIRING_SOON, EXPIRED, NO_EXPIRY]
+    VehicleDocumentRow:
+      description: >-
+        A row of the M22 org-wide "Document Repository" list — VEHICLE-linked
+        documents only, see GET /documents.
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        documentType: { $ref: "#/components/schemas/DocumentType" }
+        vehicleId: { type: string, format: uuid }
+        vehicleRegistration: { type: string }
+        depotId: { type: string, format: uuid }
+        depotName: { type: string }
+        validityExpiryDate: { type: string, format: date-time, nullable: true }
+        status: { $ref: "#/components/schemas/VehicleDocumentStatus" }
+        ocrConfidencePercent:
+          description: Average of this document's OCR fields' confidence, 0-100. Null if no OCR extraction exists yet (distinct from 0% confident).
+          type: integer
+          nullable: true
+        uploadedAt: { type: string, format: date-time, nullable: true }
     PresignResult:
       type: object
       properties:

@@ -11,6 +11,47 @@ calculation that excludes held time. **Not** this milestone: actually
 firing escalations (PR-03's configuration table, `EscalationRule`,
 already exists per M2b, but nothing consumes it — that's M13).
 
+**Update (M23):** a TAT Dashboard (`/tat/dashboard`) — a live board of
+every active stage across incidents and claims — landed on top of this
+engine. No new schema. See "M23: TAT Dashboard" below.
+
+## M23: TAT Dashboard
+
+**"Active" means `IN_PROGRESS` or `ON_HOLD` — not a report of history.**
+The design calls for "every in-progress case's TAT status," which this
+reads literally: a stage that has actually started and hasn't finished
+yet. `PENDING` stages haven't started their clock (nothing to show) and
+`COMPLETED` ones are done (that's M24's MIS Reports' TAT-compliance job,
+a rollup of *history*, not a live board). `lib/tat/dashboard.ts`'s
+`getTatDashboard()` is a new, separate aggregation — it doesn't touch
+`listStageInstancesForCase()` (still per-case, unchanged) or
+`getOperationalDashboard()`'s own `tatBreaches.topBreached` (still a
+capped top-10 preview inside the M9 dashboard) — this is the first place
+in the app showing the *complete*, unfiltered active-stage list.
+
+**Breach detection reuses `computeElapsedTime()` verbatim** — same
+`netHours > targetHours` math as everywhere else, not a second
+"breached" definition based on `dueAt < now` (the check
+`getOperationalDashboard()`'s `tatBreaches` section uses, which is a
+convenient DB-level filter for a different purpose: `dueAt` doesn't
+always exactly track the hold-adjusted net elapsed time, e.g.
+immediately after a hold starts). To let `computeElapsedTime()` be
+called without loading a stage's full `incident`/`claim` relations,
+`case-stage.ts` now exposes it against a narrower structural
+`ElapsedTimeInput` type instead of the full `LoadedStageInstance` it used
+before — a signature change with no behavior change, that also let M24
+reuse it without an unnecessary `include`.
+
+**Filters: depot, case type, breached-only.** Case type is the *real*
+`CaseType` enum (`INCIDENT`/`INSURANCE_CLAIM`/`WARRANTY_CLAIM`/
+`MAINTENANCE_CLAIM`/`OPERATIONAL_CLAIM`) read straight off each stage's
+`TatStageTemplate.caseType` — not a re-derived incident-vs-claim binary —
+since that's the real, existing distinction `TatStageTemplate` already
+makes and every case type is meaningful to filter by, not just the two
+broad kinds. Depot-scoped for `DEPOT_MANAGER` with the same "an
+out-of-scope `depotId` filter returns an empty board, not a bypass"
+pattern used everywhere else in this codebase.
+
 ## Design decisions and why
 
 **`TatStageTemplate` configuration is `ORG_ADMIN`-only; every
@@ -90,6 +131,10 @@ completion — two explicit actions, not one action doing two things.
 
 ## Verification
 
+- **`lib/tat/dashboard.integration.test.ts` (M23, 1 test)** — active-stage
+  selection (excludes `PENDING`/`COMPLETED`), breach flagging, the
+  `caseType`/`breachedOnly` filters, `DEPOT_MANAGER` depot-scoping, and
+  the out-of-scope-`depotId` → `[]` case.
 - **`lib/tat/stage-template.integration.test.ts`** (3 tests, real
   Postgres): RBAC (`ORG_ADMIN` writes, `CLAIMS_MANAGER` rejected); a
   duplicate `(organizationId, caseType, stageKey)` is rejected (the

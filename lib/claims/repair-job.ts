@@ -9,10 +9,12 @@ import { DomainError } from "@/lib/domain-error";
 import { RepairJobStatus } from "@/lib/generated/prisma/enums";
 
 // Workshop/repair tracking, a sub-workflow of a Claim (docs/schema/M2B.md).
-// Workshops are free-text fields on RepairJob, not a master entity — see
-// that doc for why. RepairJob has no human-readable ID (unlike Incident/
-// Claim/Survey) since the schema doesn't define one; its UUID is used
-// directly. See docs/CLAIMS.md.
+// Which workshop is a Workshop master-data row (M27,
+// lib/masters/workshop.ts) — was free text on RepairJob directly before
+// that, see docs/MASTERS.md's M27 section for the backfill. RepairJob
+// has no human-readable ID (unlike Incident/Claim/Survey) since the
+// schema doesn't define one; its UUID is used directly. See
+// docs/CLAIMS.md.
 
 const WRITE_ROLES = [
   "ORG_ADMIN",
@@ -54,9 +56,7 @@ async function assertRepairJobAccessible(session: AuthSession, id: string) {
 
 export const CreateRepairJobSchema = z.object({
   claimId: z.uuid(),
-  workshopName: z.string().trim().min(1).max(200),
-  workshopContact: z.string().trim().max(100).optional(),
-  workshopAddress: z.string().trim().max(500).optional(),
+  workshopId: z.uuid(),
   estimatedCost: z.number().positive().optional(),
   currency: z.string().trim().length(3).optional(),
   startDate: z.coerce.date().optional(),
@@ -68,13 +68,14 @@ export async function createRepairJob(session: AuthSession, input: unknown) {
   const data = CreateRepairJobSchema.parse(input);
   await assertClaimAccessible(session, data.claimId);
 
+  const scoped = scopedDb(session.user.organizationId);
+  await scoped.workshop.findUniqueOrThrow({ where: { id: data.workshopId } });
+
   const repairJob = await db.repairJob.create({
     data: {
       organizationId: session.user.organizationId,
       claimId: data.claimId,
-      workshopName: data.workshopName,
-      workshopContact: data.workshopContact,
-      workshopAddress: data.workshopAddress,
+      workshopId: data.workshopId,
       estimatedCost: data.estimatedCost,
       currency: data.currency ?? "INR",
       startDate: data.startDate,
@@ -95,8 +96,6 @@ export async function createRepairJob(session: AuthSession, input: unknown) {
 }
 
 export const UpdateRepairJobSchema = z.object({
-  workshopContact: z.string().trim().max(100).optional(),
-  workshopAddress: z.string().trim().max(500).optional(),
   estimatedCost: z.number().positive().optional(),
   approvedCost: z.number().positive().optional(),
   actualCost: z.number().positive().optional(),
@@ -256,6 +255,7 @@ export async function getRepairJob(session: AuthSession, id: string) {
     where: { id },
     include: {
       claim: { include: { incident: true } },
+      workshop: true,
       activities: { orderBy: { occurredAt: "desc" } },
       parts: { orderBy: { createdAt: "asc" } },
     },
@@ -273,6 +273,7 @@ export async function listRepairJobsForClaim(
   const scoped = scopedDb(session.user.organizationId);
   return scoped.repairJob.findMany({
     where: { claimId },
+    include: { workshop: true },
     orderBy: { createdAt: "desc" },
   });
 }

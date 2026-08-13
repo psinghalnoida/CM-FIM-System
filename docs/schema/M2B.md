@@ -72,6 +72,11 @@ data, a "workshop master" isn't a stated Phase 1 deliverable. Adding one
 now would be building structure ahead of a need. Migrating later is cheap:
 add a `Workshop` table, backfill `workshopId` from the existing name
 strings, drop the text columns.
+*(Superseded by M27: this is almost exactly what happened — once the
+design's Master Data screen made it a stated deliverable, `Workshop` was
+added and `workshopId` backfilled from the existing `workshopName`
+strings, then the text columns dropped. Same for `InsurancePolicy.
+insurerName` → `Insurer`. See `docs/MASTERS.md`'s M27 section.)*
 
 **Money columns carry an explicit `currency` (default `"INR"`), stored as
 `Decimal(14, 2)`.** Every money-bearing column (`InsurancePolicy.premiumAmount`/
@@ -107,6 +112,12 @@ optional.** Surveyors are frequently external agency reps with no CM FIM
 System account. Rather than forcing every survey to reference a `User`,
 the display name is always captured directly, and `surveyorUserId` is set
 only when the surveyor happens to be an internal system user.
+*(Superseded by M27: this free-text field, along with `RepairJob.
+workshopName` and `InsurancePolicy.insurerName`, was replaced with a
+real master-data FK — `Survey.surveyorId` → `Surveyor`. The reasoning
+above for why an internal-user link is optional still holds; it just
+lives on `Surveyor.linkedUserId` now. See `docs/MASTERS.md`'s M27
+section for the backfill.)*
 
 ## Verification
 
