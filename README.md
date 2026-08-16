@@ -9,7 +9,7 @@ and payment.
 
 ## Status
 
-**M1–M9, M11, M13–M28** are done: app scaffold, Docker Compose, tooling,
+**M1–M9, M11, M13–M29** are done: app scaffold, Docker Compose, tooling,
 the full Phase 1 Prisma schema, credential login/logout with
 database-backed sessions, role gating and org-scoping,
 City/Depot/Vehicle/Driver CRUD with depot-scoped RBAC and audit logging, a
@@ -74,9 +74,14 @@ name), and a Vehicle Detail tabbed profile (8 tabs — Information/Status/
 Documents/Incidents/Claims/Repair History/Warranty/Telematics — with a
 new basic-terms Warranty model; the exact tab structure and Warranty's
 fields were confirmed with the user first, since no original design file
-was available for this milestone).
-M29-M30, the rest of the UI-alignment milestones scoped from that
-design, remain — see `docs/SCOPE.md`'s "UI/UX alignment" section. M10 (WhatsApp)
+was available for this milestone), and Administration: Integration
+Settings (a real configured-and-reachable check for OCR/Email, reusing
+their actual provider-resolution functions; WhatsApp/Telematics report an
+honest "Not built yet" since M10/M12 never shipped an adapter to check;
+also closes the previously-flagged `/api/health` gap with the same
+underlying check, deliberately unauthenticated for orchestrator probes).
+M30, the last of the UI-alignment milestones scoped from that
+design, remains — see `docs/SCOPE.md`'s "UI/UX alignment" section. M10 (WhatsApp)
 and M12 (Telematics) are deferred pending JBM credentials; the roadmap
 otherwise continues with whatever's scoped next. See
 [`docs/SCOPE.md`](docs/SCOPE.md) for the milestone plan,
@@ -88,6 +93,7 @@ otherwise continues with whatever's scoped next. See
 [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md), [`docs/OCR.md`](docs/OCR.md),
 [`docs/ESCALATIONS.md`](docs/ESCALATIONS.md),
 [`docs/PAYMENTS.md`](docs/PAYMENTS.md), [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md),
+[`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md),
 [`docs/RUNBOOK.md`](docs/RUNBOOK.md), [`docs/openapi.yaml`](docs/openapi.yaml),
 and [`docs/UI_FOUNDATION.md`](docs/UI_FOUNDATION.md) for what's
 implemented so far, and [`docs/RULES.md`](docs/RULES.md) for the

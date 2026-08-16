@@ -68,28 +68,36 @@ script.
 
 ## Health checks
 
-**There is no dedicated `/api/health` route today** — a real gap, not an
-oversight to route around silently. Until one exists:
+**Update (M29):** `GET /api/health` now exists — see
+[`docs/INTEGRATIONS.md`](INTEGRATIONS.md). Deliberately unauthenticated
+(no `verifySession()` call; `proxy.ts`'s matcher never covered `/api/*`
+anyway) so an orchestrator's liveness/readiness probe can hit it with no
+session. Checks real Postgres reachability (`SELECT 1`) and real Redis
+reachability (`PING`), plus reuses M29's own OCR/Email "configured and
+reachable" check — the same underlying check `/admin/integrations`
+renders for a human. Returns `200` with `"status": "ok"` when everything
+checks out, `503` with `"status": "degraded"` otherwise (never a bare
+crash — every check is wrapped so one failing dependency still reports a
+structured result for the others).
 
-- **Web**: an unauthenticated `GET /login` returns `200` when the app is
-  up and Next.js is serving requests. It does **not** prove the database
-  is reachable — `verifySession()` (which does hit Postgres) only runs on
-  protected routes. A liveness probe against `/login` catches "the
-  process is up"; it won't catch "Postgres is down" until an actual
-  request needing DB access fails.
+- **Web**: `GET /api/health` is the real one now. An unauthenticated
+  `GET /login` still returns `200` whenever the app is up and Next.js is
+  serving requests, and remains useful as a pure "is the process alive"
+  liveness probe, but it does **not** prove the database is reachable —
+  `verifySession()` (which does hit Postgres) only runs on protected
+  routes. Point a readiness probe at `/api/health` instead.
 - **Worker**: `workers/index.ts` enqueues a `system-healthcheck` job on
   boot and processes it immediately (see the file's own comment) — a
   successful boot log line is the closest thing to a liveness signal
   right now. There's no HTTP surface to probe; a container orchestrator
   would need to check the process is alive (PID-based), not an HTTP
-  endpoint.
+  endpoint. Worker queue depth is not in `/api/health` today — a
+  reasonable follow-up once there's an actual deployment target with
+  queue-depth alerting to build it against, not invented speculatively
+  here.
 - **Postgres/Redis/MinIO**: `docker-compose.yml`'s own `healthcheck:`
   blocks (`pg_isready`, `redis-cli ping`, `mc ready`) are real and can be
   reused directly in a Kubernetes readiness probe or similar.
-
-A real `/api/health` endpoint (DB + Redis reachability, worker queue
-depth) is a reasonable follow-up once there's an actual deployment target
-to build it against — not invented speculatively here.
 
 ## Scaling notes
 

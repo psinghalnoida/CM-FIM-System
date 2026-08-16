@@ -34,8 +34,33 @@ tags:
     description: Stage templates and stage instances
   - name: Escalations
   - name: Dashboards
+  - name: Health
+    description: Integration status (M29)
 
 paths:
+  # --- Health (M29) --------------------------------------------------------
+  # Deliberately public — no session cookie required, so an orchestrator's
+  # liveness/readiness probe can call it. See docs/INTEGRATIONS.md.
+  /health:
+    get:
+      tags: [Health]
+      summary: >
+        Real reachability check — Postgres (SELECT 1), Redis (PING), and
+        the same OCR/Email/WhatsApp/Telematics status
+        /admin/integrations shows a human. Never requires auth.
+      security: []
+      responses:
+        "200":
+          description: Every check passed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthReport" }
+        "503":
+          description: At least one check failed (database/redis down, or an adapter misconfigured)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthReport" }
+
   /me:
     get:
       tags: [Me]
@@ -1941,6 +1966,36 @@ components:
         email: { type: string, format: email }
         role: { $ref: "#/components/schemas/UserRole" }
         status: { type: string, enum: [ACTIVE, INACTIVE, SUSPENDED] }
+    HealthReport:
+      type: object
+      properties:
+        status: { type: string, enum: [ok, degraded] }
+        checks:
+          type: object
+          properties:
+            database: { $ref: "#/components/schemas/HealthCheckResult" }
+            redis: { $ref: "#/components/schemas/HealthCheckResult" }
+        integrations:
+          type: array
+          items: { $ref: "#/components/schemas/IntegrationStatus" }
+    HealthCheckResult:
+      type: object
+      properties:
+        ok: { type: boolean }
+        detail: { type: string, description: "Present only when ok is false" }
+    IntegrationStatus:
+      type: object
+      properties:
+        key: { type: string, enum: [ocr, email, whatsapp, telematics] }
+        name: { type: string }
+        configuredProvider:
+          {
+            type: string,
+            nullable: true,
+            description: "The resolved provider name (e.g. \"stub\", \"console\"); null for an adapter that was never built (WhatsApp/Telematics — M10/M12)",
+          }
+        health: { type: string, enum: [OK, MISCONFIGURED, NOT_BUILT] }
+        detail: { type: string }
     SearchResult:
       type: object
       properties:
