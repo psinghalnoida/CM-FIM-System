@@ -38,6 +38,7 @@ export const ORG_SCOPED_MODELS = [
   "Broker",
   "Surveyor",
   "Workshop",
+  "Warranty",
 ] as const;
 
 type OrgScopedModel = (typeof ORG_SCOPED_MODELS)[number];

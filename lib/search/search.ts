@@ -86,10 +86,8 @@ export async function globalSearch(
       id: v.id,
       label: v.registrationNumber,
       sublabel: [v.make, v.model].filter(Boolean).join(" ") || "Vehicle",
-      // No standalone vehicle-detail page exists yet (M28) — the
-      // documents tab is the only page that renders a specific
-      // vehicle today. Re-point once M28 lands.
-      href: `/vehicles/${v.id}/documents`,
+      // M28: now points at the real Vehicle Detail page.
+      href: `/vehicles/${v.id}`,
     })),
   ];
 }

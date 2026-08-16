@@ -448,6 +448,49 @@ paths:
         "200": { description: OK }
         "403": { $ref: "#/components/responses/Forbidden" }
 
+  # --- Warranty (M28) -------------------------------------------------
+  /vehicles/{id}/warranties:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Masters]
+      summary: List warranties on a vehicle (any authenticated role, depot-scoped for DEPOT_MANAGER)
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      { type: array, items: { $ref: "#/components/schemas/Warranty" } },
+                  },
+              },
+          }
+    post:
+      tags: [Masters]
+      summary: Add a warranty (ORG_ADMIN, DEPOT_MANAGER — own depot)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, startDate, endDate]
+              properties:
+                provider: { type: string, maxLength: 200 }
+                coverageDescription: { type: string, maxLength: 1000 }
+                startDate: { type: string, format: date-time }
+                endDate:
+                  {
+                    type: string,
+                    format: date-time,
+                    description: Must be after startDate.,
+                  }
+      responses:
+        "201": { description: Created }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
   /drivers:
     get:
       tags: [Masters]
@@ -1982,6 +2025,17 @@ components:
         vehicleType: { $ref: "#/components/schemas/VehicleType" }
         manufactureYear: { type: integer, nullable: true }
         status: { type: string, enum: [ACTIVE, INACTIVE, SOLD, SCRAPPED] }
+    Warranty:
+      description: M28 — basic terms only, multiple rows allowed per vehicle.
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        vehicleId: { type: string, format: uuid }
+        provider: { type: string }
+        coverageDescription: { type: string, nullable: true }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time }
     Driver:
       type: object
       properties:

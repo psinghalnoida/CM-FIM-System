@@ -22,7 +22,14 @@ export default async function VehiclesPage() {
         <tbody>
           {vehicles.map((vehicle) => (
             <tr key={vehicle.id} className="border-border border-b">
-              <td className="py-2">{vehicle.registrationNumber}</td>
+              <td className="py-2 font-medium">
+                <Link
+                  href={`/vehicles/${vehicle.id}`}
+                  className="text-primary underline underline-offset-4"
+                >
+                  {vehicle.registrationNumber}
+                </Link>
+              </td>
               <td className="py-2">{vehicle.vehicleType}</td>
               <td className="py-2">
                 {[vehicle.make, vehicle.model].filter(Boolean).join(" ") || "—"}
@@ -30,7 +37,7 @@ export default async function VehiclesPage() {
               <td className="py-2">{vehicle.status}</td>
               <td className="py-2">
                 <Link
-                  href={`/vehicles/${vehicle.id}/documents`}
+                  href={`/vehicles/${vehicle.id}?tab=documents`}
                   className="text-primary underline underline-offset-4"
                 >
                   Documents

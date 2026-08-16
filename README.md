@@ -9,7 +9,7 @@ and payment.
 
 ## Status
 
-**M1–M9, M11, M13–M27** are done: app scaffold, Docker Compose, tooling,
+**M1–M9, M11, M13–M28** are done: app scaffold, Docker Compose, tooling,
 the full Phase 1 Prisma schema, credential login/logout with
 database-backed sessions, role gating and org-scoping,
 City/Depot/Vehicle/Driver CRUD with depot-scoped RBAC and audit logging, a
@@ -70,8 +70,12 @@ new entities — Insurer/Broker/Surveyor/Workshop — replacing what was
 free text on InsurancePolicy/Survey/RepairJob, via a real schema
 migration with a real backfill of every pre-existing value; Survey/
 Repair-job creation now picks from master data instead of typing a
-name).
-M28-M30, the rest of the UI-alignment milestones scoped from that
+name), and a Vehicle Detail tabbed profile (8 tabs — Information/Status/
+Documents/Incidents/Claims/Repair History/Warranty/Telematics — with a
+new basic-terms Warranty model; the exact tab structure and Warranty's
+fields were confirmed with the user first, since no original design file
+was available for this milestone).
+M29-M30, the rest of the UI-alignment milestones scoped from that
 design, remain — see `docs/SCOPE.md`'s "UI/UX alignment" section. M10 (WhatsApp)
 and M12 (Telematics) are deferred pending JBM credentials; the roadmap
 otherwise continues with whatever's scoped next. See

@@ -167,8 +167,15 @@ async function unreconciledPaymentItems(
   session: AuthSession,
 ): Promise<MyWorkItem[]> {
   const scoped = scopedDb(session.user.organizationId);
+  // Payment has no organizationId column and is deliberately excluded from
+  // ORG_SCOPED_MODELS (see lib/scoped-db.ts) — scopedDb() does NOT inject an
+  // org filter here, so it must be reached through its org-scoped parent
+  // (Settlement) explicitly, same pattern as lib/settlements/payment.ts.
   const payments = await scoped.payment.findMany({
-    where: { reconciled: false },
+    where: {
+      reconciled: false,
+      settlement: { organizationId: session.user.organizationId },
+    },
     select: {
       id: true,
       amount: true,

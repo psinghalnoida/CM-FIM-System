@@ -15,6 +15,11 @@ turning what was free text on InsurancePolicy/Survey/RepairJob into
 real, admin-managed rows. Real schema migration with a real backfill.
 See "M27: Insurer/Broker/Surveyor/Workshop" below.
 
+**Update (M28):** the first standalone Vehicle Detail page — an 8-tab
+profile (Information/Status/Documents/Incidents/Claims/Repair History/
+Warranty/Telematics) — plus a new `Warranty` model. See "M28: Vehicle
+Detail" below.
+
 ## Who can do what
 
 | Action | ORG_ADMIN | DEPOT_MANAGER | Everyone else (authenticated) |
@@ -136,6 +141,65 @@ configured yet (a fresh org before ORG_ADMIN has added any) shows an
 explicit message pointing at Administration &gt; Master Data rather than
 a broken or hidden form.
 
+## M28: Vehicle Detail (tabbed profile) + Warranty
+
+`app/(app)/vehicles/[id]/page.tsx` — the first standalone vehicle-detail
+page (previously the only vehicle-specific page was the M5 documents
+demo, folded into this page's Documents tab). Eight tabs, the same
+server-rendered `?tab=` pattern as Claim/Incident Detail:
+**Information** / **Status** / **Documents** / **Incidents** / **Claims**
+/ **Repair History** / **Warranty** / **Telematics**.
+
+**No original design file was available to build the tab structure
+against.** The design (`CM_FIM_System.dc.html`) lives outside this repo
+and was never re-shared for M28 — `docs/SCOPE.md`'s one-line summary
+names only 5 of the design's stated 8 tabs (Information/Status/
+Incident-Claim-Repair history/Warranty/Telematics). Rather than guess at
+the other 3 silently, this was raised with the user directly before
+building; the 8-tab structure above is this app's own interpretation
+(splitting "Incident-Claim-Repair history" into three tabs, adding
+Documents), confirmed before writing any code. If the real design
+surfaces later, re-point without much rework — the tab content is
+already split into independent, swappable sections.
+
+**Warranty is a new model — `provider`/`coverageDescription`/
+`startDate`/`endDate`.** Also confirmed with the user before building
+(the milestone's own flagged open question in `docs/SCOPE.md`). Basic
+terms only, same Phase-1-free-text-field pattern `InsurancePolicy.
+insurerName` used before M27 — `provider` is a plain string, not a
+master-data table, since nothing asked for a "warranty provider master"
+the way the design explicitly named Insurer/Surveyor/Workshop for M27.
+Multiple `Warranty` rows per vehicle are allowed (a real vehicle can
+carry the manufacturer's original warranty plus a separately-purchased
+extended one) — not a one-to-one relationship.
+
+**Incidents/Claims/Repair History reuse a new dedicated query, not
+`lib/incidents/incident.ts`'s own `ListIncidentsFilter`.** That filter
+is the Incident List page's own contract, shared with its CSV export
+(M21) — adding an unrelated `vehicleId` option there would be scope
+creep on a different module. `lib/masters/vehicle.ts`'s new
+`getVehicleHistory()` runs three independent, already-depot-scoped
+queries instead (once `getVehicle()` confirms access to the vehicle,
+every incident/claim/repair job under it is visible too — no further
+per-row depot check needed).
+
+**Status tab merges the current status + an update form + status-change
+history** into one tab rather than a separate Timeline/Audit tab —
+keeps the confirmed 8-tab count exactly matching what was agreed, and
+status-change history is the one thing actually relevant to a "Status"
+tab. Reuses the existing `PATCH /api/vehicles/[id]` (no new endpoint)
+and `listAuditLogForEntity()`, filtered to `STATUS_CHANGE` actions.
+
+**Global search and the Vehicles/Fleet list pages now link to the real
+detail page.** `lib/search/search.ts`'s vehicle result, `/vehicles`'
+own list, and the M25 Fleet Dashboard all previously linked to
+`/vehicles/{id}/documents` (the only page that existed) with a comment
+predicting "re-point once M28 lands" — done. The old standalone
+`app/(app)/vehicles/[id]/documents/page.tsx` was removed rather than
+kept as a redirect; nothing else referenced that URL directly, and the
+`/vehicles/{id}?tab=documents` deep link on the Vehicles list page's
+"Documents" column reaches the same content.
+
 ## Design decisions and why
 
 **DEPOT_MANAGER is scoped to their own depot for both reads and writes —
@@ -246,3 +310,23 @@ real resources instead of just the one reference route (`/api/me`).
   Surveyor/Workshop through the UI and then opening a Claim's "Schedule
   survey"/"Open repair job" form shows it in the dropdown; unauthenticated
   `/api/admin/insurers` → `401`.
+- **`lib/masters/warranty.integration.test.ts` (M28, 6 tests)**:
+  ORG_ADMIN and depot-scoped DEPOT_MANAGER can create, CLAIMS_MANAGER
+  cannot; a DEPOT_MANAGER cannot create a warranty for another depot's
+  vehicle; `endDate` before/equal to `startDate` rejected (`ZodError`);
+  multiple warranties on the same vehicle are allowed; `listWarrantiesForVehicle`
+  is depot-scoped the same way as the vehicle itself; `updateWarranty`
+  records an UPDATE audit entry.
+- **`lib/masters/vehicle-history.integration.test.ts` (M28, 1 test)**:
+  `getVehicleHistory()` returns exactly one vehicle's own incidents/
+  claims/repair jobs, correctly excluding a second vehicle's, with the
+  claim's `incident` and the repair job's `workshop` both present via
+  `include`.
+- **Real HTTP (M28), against the built app**: all 8 tabs of
+  `/vehicles/{id}` render real data for a seeded vehicle; the Status
+  tab's inline update form actually changes status and the change shows
+  up in the status-history table on refresh; the Warranty tab's create
+  form adds a warranty and it appears in the list; the global search
+  vehicle result and the Vehicles/Fleet list pages all link to the new
+  detail page, not the retired documents-only page; unauthenticated
+  `/vehicles/{id}` redirects to `/login`.

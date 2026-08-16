@@ -175,7 +175,7 @@ describe("globalSearch", () => {
       (r) => r.type === "vehicle" && r.id === depotA.vehicle.id,
     );
     expect(match).toBeDefined();
-    expect(match?.href).toBe(`/vehicles/${depotA.vehicle.id}/documents`);
+    expect(match?.href).toBe(`/vehicles/${depotA.vehicle.id}`);
   });
 
   it("never returns another organization's data, even with a matching-looking query", async () => {

@@ -174,8 +174,9 @@ test, rather than needing a 100MB fixture in the test suite).
 
 ## Deferred to a follow-up
 
-- **Full document management UI.** M5 ships one demo page
-  (`app/vehicles/[id]/documents/page.tsx`) with a bare upload form and a
+- **Full document management UI.** M5 shipped one demo page (later
+  folded into the Vehicle Detail page's Documents tab by M28 — see
+  `app/(app)/vehicles/[id]/page.tsx`) with a bare upload form and a
   version-count list, proving the service/API layer end-to-end — not
   metadata editing, version-history browsing, or a documents view on the
   Driver side (the API/service layer already supports Driver, it just has
