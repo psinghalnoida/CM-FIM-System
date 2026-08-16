@@ -164,7 +164,7 @@ export default async function FleetDashboardPage({
             <tr key={vehicle.id} className="border-border border-b">
               <td className="py-2 font-medium">
                 <Link
-                  href={`/vehicles/${vehicle.id}/documents`}
+                  href={`/vehicles/${vehicle.id}`}
                   className="text-primary underline underline-offset-4"
                 >
                   {vehicle.registrationNumber}

@@ -9,7 +9,7 @@ and payment.
 
 ## Status
 
-**M1–M9, M11, M13–M27** are done: app scaffold, Docker Compose, tooling,
+**M1–M9, M11, M13–M30** are done: app scaffold, Docker Compose, tooling,
 the full Phase 1 Prisma schema, credential login/logout with
 database-backed sessions, role gating and org-scoping,
 City/Depot/Vehicle/Driver CRUD with depot-scoped RBAC and audit logging, a
@@ -70,9 +70,26 @@ new entities — Insurer/Broker/Surveyor/Workshop — replacing what was
 free text on InsurancePolicy/Survey/RepairJob, via a real schema
 migration with a real backfill of every pre-existing value; Survey/
 Repair-job creation now picks from master data instead of typing a
-name).
-M28-M30, the rest of the UI-alignment milestones scoped from that
-design, remain — see `docs/SCOPE.md`'s "UI/UX alignment" section. M10 (WhatsApp)
+name), and a Vehicle Detail tabbed profile (8 tabs — Information/Status/
+Documents/Incidents/Claims/Repair History/Warranty/Telematics — with a
+new basic-terms Warranty model; the exact tab structure and Warranty's
+fields were confirmed with the user first, since no original design file
+was available for this milestone), and Administration: Integration
+Settings (a real configured-and-reachable check for OCR/Email, reusing
+their actual provider-resolution functions; WhatsApp/Telematics report an
+honest "Not built yet" since M10/M12 never shipped an adapter to check;
+also closes the previously-flagged `/api/health` gap with the same
+underlying check, deliberately unauthenticated for orchestrator probes),
+and the "Mitra" AI assistant (read-only Q&A over live fleet/incident/
+claim data via a floating chat widget built from scratch — M16 never
+actually built the chat widget this milestone assumed existed; an
+`AssistantProvider` adapter with a real deterministic stub by default and
+a real `@anthropic-ai/sdk`-backed Claude adapter behind
+`ASSISTANT_PROVIDER=claude`; a confirmed "Core 5" read-only tool set —
+search plus get-by-id for incidents/claims/vehicles, plus My Work — each
+tool calling the caller's real, already-scoped session).
+That's every milestone scoped from the Claims Mitra design — see
+`docs/SCOPE.md`'s "UI/UX alignment" section. M10 (WhatsApp)
 and M12 (Telematics) are deferred pending JBM credentials; the roadmap
 otherwise continues with whatever's scoped next. See
 [`docs/SCOPE.md`](docs/SCOPE.md) for the milestone plan,
@@ -84,6 +101,8 @@ otherwise continues with whatever's scoped next. See
 [`docs/DASHBOARDS.md`](docs/DASHBOARDS.md), [`docs/OCR.md`](docs/OCR.md),
 [`docs/ESCALATIONS.md`](docs/ESCALATIONS.md),
 [`docs/PAYMENTS.md`](docs/PAYMENTS.md), [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md),
+[`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md),
+[`docs/MITRA.md`](docs/MITRA.md),
 [`docs/RUNBOOK.md`](docs/RUNBOOK.md), [`docs/openapi.yaml`](docs/openapi.yaml),
 and [`docs/UI_FOUNDATION.md`](docs/UI_FOUNDATION.md) for what's
 implemented so far, and [`docs/RULES.md`](docs/RULES.md) for the

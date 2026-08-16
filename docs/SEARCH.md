@@ -37,11 +37,15 @@ the dropdown small and the query cheap (three independent, bounded
 UNION query) — a reasonable simplification for "start typing an ID you
 already mostly know," not a general-purpose ranked search engine.
 
-**The vehicle result links to `/vehicles/{id}/documents`, not
+**Update (M28):** the vehicle result now links to `/vehicles/{id}` —
+the real Vehicle Detail page M28 built, per the note below it replaced.
+See `docs/MASTERS.md`'s M28 section.
+
+~~**The vehicle result links to `/vehicles/{id}/documents`, not
 `/vehicles/{id}`.** No standalone vehicle-detail page exists yet — M28
 ("Vehicle Detail tabbed profile") is what actually builds one. Linking
 to a page that 404s would be worse than linking to the one real page
-that exists today. Re-point once M28 lands.
+that exists today. Re-point once M28 lands.~~
 
 **Debounced (250ms) client-side fetch, no new dependency.** A plain
 `setTimeout`-based debounce in `components/shell/global-search.tsx` —

@@ -1,6 +1,7 @@
 import { verifySession } from "@/lib/dal";
 import { Sidebar } from "@/components/shell/sidebar";
 import { Header } from "@/components/shell/header";
+import { MitraWidget } from "@/components/shell/mitra-widget";
 
 // M16: the nav shell every protected page renders inside — a route
 // group (parens don't affect the URL) so this wraps every page under
@@ -27,6 +28,7 @@ export default async function AppLayout({
         <Header user={session.user} />
         <main className="min-w-0 flex-1 overflow-x-auto">{children}</main>
       </div>
+      <MitraWidget />
     </div>
   );
 }

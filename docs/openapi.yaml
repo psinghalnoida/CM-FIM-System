@@ -34,8 +34,35 @@ tags:
     description: Stage templates and stage instances
   - name: Escalations
   - name: Dashboards
+  - name: Mitra
+    description: Read-only AI assistant (M30)
+  - name: Health
+    description: Integration status (M29)
 
 paths:
+  # --- Health (M29) --------------------------------------------------------
+  # Deliberately public — no session cookie required, so an orchestrator's
+  # liveness/readiness probe can call it. See docs/INTEGRATIONS.md.
+  /health:
+    get:
+      tags: [Health]
+      summary: >
+        Real reachability check — Postgres (SELECT 1), Redis (PING), and
+        the same OCR/Email/WhatsApp/Telematics status
+        /admin/integrations shows a human. Never requires auth.
+      security: []
+      responses:
+        "200":
+          description: Every check passed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthReport" }
+        "503":
+          description: At least one check failed (database/redis down, or an adapter misconfigured)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthReport" }
+
   /me:
     get:
       tags: [Me]
@@ -446,6 +473,49 @@ paths:
       summary: Update a vehicle (also accepts status)
       responses:
         "200": { description: OK }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  # --- Warranty (M28) -------------------------------------------------
+  /vehicles/{id}/warranties:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Masters]
+      summary: List warranties on a vehicle (any authenticated role, depot-scoped for DEPOT_MANAGER)
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      { type: array, items: { $ref: "#/components/schemas/Warranty" } },
+                  },
+              },
+          }
+    post:
+      tags: [Masters]
+      summary: Add a warranty (ORG_ADMIN, DEPOT_MANAGER — own depot)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, startDate, endDate]
+              properties:
+                provider: { type: string, maxLength: 200 }
+                coverageDescription: { type: string, maxLength: 1000 }
+                startDate: { type: string, format: date-time }
+                endDate:
+                  {
+                    type: string,
+                    format: date-time,
+                    description: Must be after startDate.,
+                  }
+      responses:
+        "201": { description: Created }
+        "400": { $ref: "#/components/responses/ValidationError" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
   /drivers:
@@ -1820,6 +1890,54 @@ paths:
       responses:
         "200": { description: OK }
 
+  # --- Mitra assistant (M30) -------------------------------------------------
+  /mitra/chat:
+    post:
+      tags: [Mitra]
+      summary: >
+        Read-only Q&A over live fleet/incident/claim data. The provider
+        (stub by default, real Claude with ASSISTANT_PROVIDER=claude) runs
+        a small fixed set of read-only tools with the caller's real
+        session — scopedDb()/RBAC apply exactly as everywhere else. Never
+        writes anything. See docs/MITRA.md.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messages]
+              properties:
+                messages:
+                  type: array
+                  minItems: 1
+                  maxItems: 20
+                  items:
+                    type: object
+                    required: [role, content]
+                    properties:
+                      role: { type: string, enum: [user, assistant] }
+                      content: { type: string, minLength: 1, maxLength: 4000 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reply: { type: string }
+                  toolCalls:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        args: {}
+                        result: {}
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -1898,6 +2016,36 @@ components:
         email: { type: string, format: email }
         role: { $ref: "#/components/schemas/UserRole" }
         status: { type: string, enum: [ACTIVE, INACTIVE, SUSPENDED] }
+    HealthReport:
+      type: object
+      properties:
+        status: { type: string, enum: [ok, degraded] }
+        checks:
+          type: object
+          properties:
+            database: { $ref: "#/components/schemas/HealthCheckResult" }
+            redis: { $ref: "#/components/schemas/HealthCheckResult" }
+        integrations:
+          type: array
+          items: { $ref: "#/components/schemas/IntegrationStatus" }
+    HealthCheckResult:
+      type: object
+      properties:
+        ok: { type: boolean }
+        detail: { type: string, description: "Present only when ok is false" }
+    IntegrationStatus:
+      type: object
+      properties:
+        key: { type: string, enum: [ocr, email, assistant, whatsapp, telematics] }
+        name: { type: string }
+        configuredProvider:
+          {
+            type: string,
+            nullable: true,
+            description: "The resolved provider name (e.g. \"stub\", \"console\"); null for an adapter that was never built (WhatsApp/Telematics — M10/M12)",
+          }
+        health: { type: string, enum: [OK, MISCONFIGURED, NOT_BUILT] }
+        detail: { type: string }
     SearchResult:
       type: object
       properties:
@@ -1982,6 +2130,17 @@ components:
         vehicleType: { $ref: "#/components/schemas/VehicleType" }
         manufactureYear: { type: integer, nullable: true }
         status: { type: string, enum: [ACTIVE, INACTIVE, SOLD, SCRAPPED] }
+    Warranty:
+      description: M28 — basic terms only, multiple rows allowed per vehicle.
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        vehicleId: { type: string, format: uuid }
+        provider: { type: string }
+        coverageDescription: { type: string, nullable: true }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time }
     Driver:
       type: object
       properties:

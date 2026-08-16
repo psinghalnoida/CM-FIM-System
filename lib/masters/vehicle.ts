@@ -115,6 +115,37 @@ export async function updateVehicle(
   return vehicle;
 }
 
+/**
+ * M28: the Vehicle Detail page's Incidents/Claims/Repair History tabs.
+ * A dedicated query rather than overloading lib/incidents/incident.ts's
+ * `ListIncidentsFilter` (that filter shape is the Incident List page's
+ * own contract, shared with its CSV export — adding an unrelated
+ * `vehicleId` there would be scope creep on a different module). Once
+ * `getVehicle()` above has confirmed depot access, every incident/claim/
+ * repair job under this one vehicle is visible too — no further
+ * per-row depot check needed.
+ */
+export async function getVehicleHistory(session: AuthSession, vehicleId: string) {
+  const scoped = scopedDb(session.user.organizationId);
+  const [incidents, claims, repairJobs] = await Promise.all([
+    scoped.incident.findMany({
+      where: { vehicleId },
+      orderBy: { incidentDateTime: "desc" },
+    }),
+    scoped.claim.findMany({
+      where: { incident: { vehicleId } },
+      include: { incident: true },
+      orderBy: { openedAt: "desc" },
+    }),
+    scoped.repairJob.findMany({
+      where: { claim: { incident: { vehicleId } } },
+      include: { workshop: true, claim: true },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+  return { incidents, claims, repairJobs };
+}
+
 /** Soft-delete: master data referenced elsewhere (incidents, ...) is never hard-deleted. */
 export async function archiveVehicle(session: AuthSession, id: string) {
   requireRole(session, ...WRITE_ROLES);
