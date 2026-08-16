@@ -11,6 +11,11 @@ the `/api/health` endpoint `docs/DEPLOYMENT.md` had flagged as a real
 gap, since both need the identical underlying "is this configured and
 reachable" check.
 
+**Update (M30):** the Mitra assistant (`ASSISTANT_PROVIDER`) is now a
+third real check alongside OCR/Email — `lib/integrations/status.ts`
+resolves it the same way, via `getAssistantProvider()` directly. See
+`docs/MITRA.md`.
+
 ## Design decisions and why
 
 **WhatsApp and Telematics report a static "Not built yet," not a fake

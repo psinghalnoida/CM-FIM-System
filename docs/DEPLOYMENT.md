@@ -44,6 +44,9 @@ and which milestone introduced it — is `.env.example`. Summarized:
 | `DOCUMENT_MAX_FILE_SIZE_BYTES` | optional | Defaults to 100MB |
 | `OCR_PROVIDER` | optional | Defaults to `stub` (deterministic, no external calls). Setting anything else today fails closed — no real Textract adapter exists yet (pending AWS credentials for JBM, see `docs/OCR.md`) |
 | `EMAIL_PROVIDER` | optional | Defaults to `console` (logs, doesn't send). Same fail-closed behavior — no real SES/SendGrid adapter yet, see `docs/ESCALATIONS.md` |
+| `ASSISTANT_PROVIDER` | optional | Defaults to `stub` (deterministic, no external calls). `claude` is the real adapter (official `@anthropic-ai/sdk`) — needs `ANTHROPIC_API_KEY`. Fails closed on any other value, see `docs/MITRA.md` |
+| `ANTHROPIC_API_KEY` | required if `ASSISTANT_PROVIDER=claude` | Not read at all when the provider is `stub` (the default) |
+| `ASSISTANT_MODEL` | optional | Defaults to `claude-opus-5` when `ASSISTANT_PROVIDER=claude` |
 | `PORT` | optional | Web container's listen port, defaults to 3000 |
 
 **Never set `NODE_ENV=production` while running `npm run db:seed`** — the

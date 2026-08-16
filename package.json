@@ -21,6 +21,7 @@
     "db:seed": "NODE_OPTIONS=\"--require ./scripts/server-only-shim.cjs\" tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.117.1",
     "@aws-sdk/client-s3": "^3.1106.0",
     "@aws-sdk/s3-request-presigner": "^3.1106.0",
     "@prisma/adapter-pg": "^7.9.1",

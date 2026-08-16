@@ -9,7 +9,7 @@ and payment.
 
 ## Status
 
-**M1–M9, M11, M13–M29** are done: app scaffold, Docker Compose, tooling,
+**M1–M9, M11, M13–M30** are done: app scaffold, Docker Compose, tooling,
 the full Phase 1 Prisma schema, credential login/logout with
 database-backed sessions, role gating and org-scoping,
 City/Depot/Vehicle/Driver CRUD with depot-scoped RBAC and audit logging, a
@@ -79,9 +79,17 @@ Settings (a real configured-and-reachable check for OCR/Email, reusing
 their actual provider-resolution functions; WhatsApp/Telematics report an
 honest "Not built yet" since M10/M12 never shipped an adapter to check;
 also closes the previously-flagged `/api/health` gap with the same
-underlying check, deliberately unauthenticated for orchestrator probes).
-M30, the last of the UI-alignment milestones scoped from that
-design, remains — see `docs/SCOPE.md`'s "UI/UX alignment" section. M10 (WhatsApp)
+underlying check, deliberately unauthenticated for orchestrator probes),
+and the "Mitra" AI assistant (read-only Q&A over live fleet/incident/
+claim data via a floating chat widget built from scratch — M16 never
+actually built the chat widget this milestone assumed existed; an
+`AssistantProvider` adapter with a real deterministic stub by default and
+a real `@anthropic-ai/sdk`-backed Claude adapter behind
+`ASSISTANT_PROVIDER=claude`; a confirmed "Core 5" read-only tool set —
+search plus get-by-id for incidents/claims/vehicles, plus My Work — each
+tool calling the caller's real, already-scoped session).
+That's every milestone scoped from the Claims Mitra design — see
+`docs/SCOPE.md`'s "UI/UX alignment" section. M10 (WhatsApp)
 and M12 (Telematics) are deferred pending JBM credentials; the roadmap
 otherwise continues with whatever's scoped next. See
 [`docs/SCOPE.md`](docs/SCOPE.md) for the milestone plan,
@@ -94,6 +102,7 @@ otherwise continues with whatever's scoped next. See
 [`docs/ESCALATIONS.md`](docs/ESCALATIONS.md),
 [`docs/PAYMENTS.md`](docs/PAYMENTS.md), [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md),
 [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md),
+[`docs/MITRA.md`](docs/MITRA.md),
 [`docs/RUNBOOK.md`](docs/RUNBOOK.md), [`docs/openapi.yaml`](docs/openapi.yaml),
 and [`docs/UI_FOUNDATION.md`](docs/UI_FOUNDATION.md) for what's
 implemented so far, and [`docs/RULES.md`](docs/RULES.md) for the
